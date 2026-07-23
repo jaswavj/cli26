@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glassmorphism Sidebar - Design Reference</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            color: white;
+        }
+
+        .section h2 {
+            font-size: 1.75rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid rgba(255, 105, 180, 0.5);
+            padding-bottom: 0.5rem;
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .color-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .color-preview {
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .color-info {
+            padding: 1rem;
+        }
+
+        .color-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .color-value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.5rem;
+            border-radius: 5px;
+            margin: 0.25rem 0;
+            word-break: break-all;
+        }
+
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .spec-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 3px solid #ff69b4;
+        }
+
+        .spec-label {
+            font-weight: 600;
+            color: #ff69b4;
+            margin-bottom: 0.5rem;
+        }
+
+        .spec-value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.95rem;
+        }
+
+        .feature-list {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .feature-list li {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 3px solid rgba(255, 105, 180, 0.5);
+        }
+
+        .feature-list li::before {
+            content: "✓";
+            color: #ff69b4;
+            font-weight: bold;
+            margin-right: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .gradient-preview {
+            height: 150px;
+            border-radius: 10px;
+            margin: 1rem 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .code-block {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .code-block pre {
+            margin: 0;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .highlight {
+            color: #ff69b4;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Glassmorphism Sidebar Design Reference</h1>
+            <p>Complete color palette, specifications, and guidelines</p>
+        </div>
+
+        <!-- Color Palette -->
+        <div class="section">
+            <h2>🎨 Color Palette</h2>
+            
+            <h3 style="margin: 1.5rem 0 1rem; font-size: 1.3rem;">Background Gradients</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-preview" style="background: rgba(30, 30, 40, 0.85);">
+                        Top
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Sidebar Top</div>
+                        <div class="color-value">rgba(30, 30, 40, 0.85)</div>
+                        <div class="color-value">#1E1E28 @ 85%</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-preview" style="background: rgba(40, 40, 55, 0.85);">
+                        Middle
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Sidebar Middle</div>
+                        <div class="color-value">rgba(40, 40, 55, 0.85)</div>
+                        <div class="color-value">#282837 @ 85%</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-preview" style="background: rgba(50, 50, 65, 0.85);">
+                        Bottom
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Sidebar Bottom</div>
+                        <div class="color-value">rgba(50, 50, 65, 0.85)</div>
+                        <div class="color-value">#323241 @ 85%</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; font-size: 1.3rem;">Accent Colors</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-preview" style="background: linear-gradient(135deg, rgba(255, 105, 180, 0.3), rgba(219, 39, 119, 0.3));">
+                        Active State
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Pink Gradient (Active)</div>
+                        <div class="color-value">rgba(255, 105, 180, 0.3)</div>
+                        <div class="color-value">rgba(219, 39, 119, 0.3)</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-preview" style="background: #ff69b4;">
+                        Highlight
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Hot Pink (Primary)</div>
+                        <div class="color-value">#ff69b4</div>
+                        <div class="color-value">rgb(255, 105, 180)</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-preview" style="background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));">
+                        Hover State
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">White Gradient (Hover)</div>
+                        <div class="color-value">rgba(255, 255, 255, 0.1)</div>
+                        <div class="color-value">rgba(255, 255, 255, 0.05)</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; font-size: 1.3rem;">Text Colors</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-preview" style="background: #ffffff; color: #333;">
+                        Primary
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Primary Text</div>
+                        <div class="color-value">#ffffff</div>
+                        <div class="color-value">rgb(255, 255, 255)</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-preview" style="background: rgba(255, 255, 255, 0.8);">
+                        Secondary
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Secondary Text</div>
+                        <div class="color-value">rgba(255, 255, 255, 0.8)</div>
+                        <div class="color-value">#ffffff @ 80%</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-preview" style="background: rgba(255, 255, 255, 0.6);">
+                        Tertiary
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Tertiary Text</div>
+                        <div class="color-value">rgba(255, 255, 255, 0.6)</div>
+                        <div class="color-value">#ffffff @ 60%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Effects & Shadows -->
+        <div class="section">
+            <h2>✨ Effects & Shadows</h2>
+            
+            <div class="specs-grid">
+                <div class="spec-item">
+                    <div class="spec-label">Backdrop Blur</div>
+                    <div class="spec-value">blur(20px)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Main Shadow</div>
+                    <div class="spec-value">4px 0 24px rgba(0, 0, 0, 0.3)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Inset Highlight</div>
+                    <div class="spec-value">inset -1px 0 0 rgba(255, 255, 255, 0.05)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Active State Shadow</div>
+                    <div class="spec-value">0 4px 15px rgba(255, 105, 180, 0.4)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Hover State Shadow</div>
+                    <div class="spec-value">0 4px 12px rgba(0, 0, 0, 0.2)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Border</div>
+                    <div class="spec-value">1px solid rgba(255, 255, 255, 0.1)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dimensions & Spacing -->
+        <div class="section">
+            <h2>📏 Dimensions & Spacing</h2>
+            
+            <div class="specs-grid">
+                <div class="spec-item">
+                    <div class="spec-label">Sidebar Width</div>
+                    <div class="spec-value">260px (280px on mobile)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Logo Icon Size</div>
+                    <div class="spec-value">50x50px (45x45px on mobile)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Menu Item Padding</div>
+                    <div class="spec-value">14px 20px</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Submenu Indent</div>
+                    <div class="spec-value">50px (left padding)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Border Radius (Sidebar)</div>
+                    <div class="spec-value">0 20px 20px 0</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Border Radius (Items)</div>
+                    <div class="spec-value">10px (main) / 6px (sub)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Icon Size</div>
+                    <div class="spec-value">24px (width) / 1.1rem (font)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Icon Margin</div>
+                    <div class="spec-value">12px (right)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Animation Specs -->
+        <div class="section">
+            <h2>⚡ Animation Specifications</h2>
+            
+            <div class="specs-grid">
+                <div class="spec-item">
+                    <div class="spec-label">Transition Duration</div>
+                    <div class="spec-value">0.3s (all animations)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Timing Function</div>
+                    <div class="spec-value">ease</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Hover Transform</div>
+                    <div class="spec-value">translateX(2px)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Icon Hover Scale</div>
+                    <div class="spec-value">scale(1.1)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Chevron Rotation</div>
+                    <div class="spec-value">rotate(180deg)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Sidebar Toggle</div>
+                    <div class="spec-value">translateX(-260px)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Typography -->
+        <div class="section">
+            <h2>📝 Typography</h2>
+            
+            <div class="specs-grid">
+                <div class="spec-item">
+                    <div class="spec-label">Font Family</div>
+                    <div class="spec-value">'Segoe UI', Tahoma, Geneva, Verdana, sans-serif</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Logo Title</div>
+                    <div class="spec-value">1.25rem / 700 weight / 0.5px spacing</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Logo Subtitle</div>
+                    <div class="spec-value">0.75rem / 400 weight / 1px spacing</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Menu Item</div>
+                    <div class="spec-value">1rem / 400 weight</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Submenu Item</div>
+                    <div class="spec-value">0.875rem / 400 weight</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-label">Icon Font Size</div>
+                    <div class="spec-value">1.1rem (main) / 0.75rem (chevron)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Features -->
+        <div class="section">
+            <h2>🚀 Key Features</h2>
+            
+            <ul class="feature-list">
+                <li>Semi-transparent dark background with smooth vertical gradient</li>
+                <li>Frosted glass effect using backdrop-filter blur</li>
+                <li>Floating shadow effect for depth perception</li>
+                <li>Rounded right corners (20px border-radius)</li>
+                <li>White text with varying opacity levels</li>
+                <li>Subtle highlight on hover with transform animation</li>
+                <li>Pink gradient background for active menu items</li>
+                <li>Smooth 0.3s ease transitions on all interactions</li>
+                <li>Custom scrollbar with pink gradient theme</li>
+                <li>Responsive design for mobile, tablet, and desktop</li>
+                <li>Collapsible dropdown menus with animations</li>
+                <li>Icon animations on hover (scale 1.1)</li>
+                <li>Dot indicators for submenu items</li>
+                <li>Chevron rotation for dropdown states</li>
+                <li>Production-ready pure HTML + CSS</li>
+                <li>No external framework dependencies</li>
+            </ul>
+        </div>
+
+        <!-- CSS Code Example -->
+        <div class="section">
+            <h2>💻 Core CSS Code</h2>
+            
+            <div class="code-block">
+                <pre>.sidebar {
+    <span class="highlight">background:</span> linear-gradient(
+        180deg,
+        rgba(30, 30, 40, 0.85) 0%,
+        rgba(40, 40, 55, 0.85) 50%,
+        rgba(50, 50, 65, 0.85) 100%
+    );
+    <span class="highlight">backdrop-filter:</span> blur(20px);
+    <span class="highlight">-webkit-backdrop-filter:</span> blur(20px);
+    <span class="highlight">border-right:</span> 1px solid rgba(255, 255, 255, 0.1);
+    <span class="highlight">box-shadow:</span> 
+        4px 0 24px rgba(0, 0, 0, 0.3),
+        inset -1px 0 0 rgba(255, 255, 255, 0.05);
+    <span class="highlight">border-radius:</span> 0 20px 20px 0;
+    <span class="highlight">transition:</span> all 0.3s ease;
+}</pre>
+            </div>
+
+            <div class="code-block">
+                <pre>.sidebar-item.active {
+    <span class="highlight">background:</span> linear-gradient(
+        135deg,
+        rgba(255, 105, 180, 0.3) 0%,
+        rgba(219, 39, 119, 0.3) 100%
+    );
+    <span class="highlight">border-left-color:</span> #ff69b4;
+    <span class="highlight">box-shadow:</span> 
+        0 4px 15px rgba(255, 105, 180, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}</pre>
+            </div>
+        </div>
+
+        <!-- Browser Support -->
+        <div class="section">
+            <h2>🌐 Browser Support</h2>
+            
+            <div class="specs-grid">
+                <div class="spec-item" style="border-left-color: #4caf50;">
+                    <div class="spec-label" style="color: #4caf50;">Chrome / Edge</div>
+                    <div class="spec-value">✓ Full Support (native backdrop-filter)</div>
+                </div>
+
+                <div class="spec-item" style="border-left-color: #4caf50;">
+                    <div class="spec-label" style="color: #4caf50;">Firefox</div>
+                    <div class="spec-value">✓ Full Support (native backdrop-filter)</div>
+                </div>
+
+                <div class="spec-item" style="border-left-color: #4caf50;">
+                    <div class="spec-label" style="color: #4caf50;">Safari</div>
+                    <div class="spec-value">✓ Full Support (-webkit-backdrop-filter)</div>
+                </div>
+
+                <div class="spec-item" style="border-left-color: #ff9800;">
+                    <div class="spec-label" style="color: #ff9800;">IE11</div>
+                    <div class="spec-value">⚠ Degrades gracefully (no blur effect)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

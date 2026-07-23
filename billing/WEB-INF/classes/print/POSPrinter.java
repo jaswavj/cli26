@@ -1,0 +1,1018 @@
+package print;
+
+import javax.print.*;
+import javax.print.attribute.*;
+import javax.print.attribute.standard.*;
+import java.io.*;
+import java.util.*;
+import java.text.DecimalFormat;
+import billing.billingBean;
+import user.userBean;
+
+// iText PDF imports (itextpdf-5.2.0.jar)
+import com.itextpdf.text.*;
+import com.itextpdf.text.pdf.*;
+import com.itextpdf.text.pdf.draw.LineSeparator;
+
+/**
+ * ESC/POS Direct Thermal Printer Utility
+ * Sends raw ESC/POS commands directly to the thermal printer
+ * bypassing the browser print dialog. No empty page issue.
+ */
+public class POSPrinter {
+
+    // ESC/POS Command Constants (using byte arrays for better control)
+    private static final byte[] ESC = {0x1B};
+    private static final byte[] GS = {0x1D};
+    private static final byte[] INIT = {0x1B, 0x40};                    // Initialize printer
+    private static final byte[] BOLD_ON = {0x1B, 0x45, 0x01};           // Bold on
+    private static final byte[] BOLD_OFF = {0x1B, 0x45, 0x00};          // Bold off
+    private static final byte[] ALIGN_CENTER = {0x1B, 0x61, 0x01};      // Center align
+    private static final byte[] ALIGN_LEFT = {0x1B, 0x61, 0x00};        // Left align
+    private static final byte[] ALIGN_RIGHT = {0x1B, 0x61, 0x02};       // Right align
+    private static final byte[] FONT_NORMAL = {0x1B, 0x21, 0x00};       // Normal font
+    private static final byte[] FONT_DOUBLE_H = {0x1B, 0x21, 0x10};     // Double height
+    private static final byte[] FONT_B = {0x1B, 0x4D, 0x01};            // Font B (small/compact)
+    private static final byte[] FONT_A = {0x1B, 0x4D, 0x00};            // Font A (default)
+    private static final byte[] CUT_PAPER = {0x1D, 0x56, 0x01};         // Partial cut
+    private static final byte[] FEED_2_LINES = {0x1B, 0x64, 0x02};      // Feed 2 lines
+    private static final byte[] FEED_3_LINES = {0x1B, 0x64, 0x03};      // Feed 3 lines
+    
+    // Receipt width - configurable for different printer sizes
+    private static int RECEIPT_WIDTH = 48; // Default: 80mm printer (48 chars)
+    private static final int RECEIPT_WIDTH_58MM = 32; // 58mm printer
+    private static final int RECEIPT_WIDTH_80MM = 48; // 80mm printer
+    
+    private static final DecimalFormat df = new DecimalFormat("0.00");
+    
+    // Base path for the web application (set from JSP using setApplicationPath)
+    private static String applicationBasePath = null;
+    
+    // TXT output folder when no printer is available (relative to application)
+    private static String getTxtOutputDir() {
+        if (applicationBasePath != null) {
+            return applicationBasePath + File.separator + "bills";
+        }
+        // Fallback to current directory + bills (for local development)
+        return "bills";
+    }
+    
+    /**
+     * Set the application base path from JSP/Servlet context
+     * Call this from JSP: POSPrinter.setApplicationPath(application.getRealPath("/"));
+     */
+    public static void setApplicationPath(String basePath) {
+        applicationBasePath = basePath;
+    }
+    
+    // Printer name from config (null = use default printer)
+    // NOT cached statically - always read fresh from DB so changes take effect immediately
+    private static String configuredPrinterName = null;
+
+    /**
+     * Load printer name from company_details table in database
+     * Also detect printer width (58mm vs 80mm)
+     */
+    private static String getConfiguredPrinterName() {
+        // Always re-read from DB (do not cache - admin can change printer name at any time)
+        configuredPrinterName = null;
+        try {
+            userBean uBean = new userBean();
+            Vector companyDetails = uBean.getCompanyDetails();
+            if (companyDetails != null && companyDetails.size() > 5) {
+                String printerName = (String) companyDetails.elementAt(5);
+                if (printerName != null && !printerName.trim().isEmpty()) {
+                    configuredPrinterName = printerName.trim();
+                    // Auto-detect width: if printer name contains "58", use 32 chars
+                    if (printerName.contains("58")) {
+                        RECEIPT_WIDTH = RECEIPT_WIDTH_58MM;
+                    } else {
+                        RECEIPT_WIDTH = RECEIPT_WIDTH_80MM;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Ignore, use default printer
+            e.printStackTrace();
+        }
+        return configuredPrinterName;
+    }
+
+    /**
+     * Find the print service by configured name.
+     * Returns null if no printer is configured or no matching printer is found (triggers TXT fallback).
+     * Does NOT fall back to OS default printer (e.g. "Microsoft Print to PDF") since that
+     * would silently "succeed" without producing a physical receipt.
+     */
+    private static PrintService findPrintService() {
+        String printerName = getConfiguredPrinterName();
+        
+        if (printerName == null || printerName.isEmpty()) {
+            // No printer configured in company_details - return null to trigger TXT fallback
+            return null;
+        }
+        
+        PrintService[] services = PrintServiceLookup.lookupPrintServices(null, null);
+        for (PrintService service : services) {
+            if (service.getName().toLowerCase().contains(printerName.toLowerCase())) {
+                return service;
+            }
+        }
+        // Configured printer not found in system - return null to trigger TXT fallback
+        return null;
+    }
+
+    /**
+     * List all available printers on the system
+     */
+    public static java.util.List<String> getAvailablePrinters() {
+        java.util.List<String> printers = new ArrayList<String>();
+        PrintService[] services = PrintServiceLookup.lookupPrintServices(null, null);
+        for (PrintService service : services) {
+            printers.add(service.getName());
+        }
+        return printers;
+    }
+
+    /**
+     * Print result object - indicates whether printed or saved as TXT
+     */
+   
+    public static class PrintResult {
+        public boolean printed;     // true if sent to printer
+        public boolean txtSaved;    // true if saved as TXT
+        public String txtPath;      // path to TXT file (if saved)
+        public String message;
+        
+        public PrintResult(boolean printed, boolean txtSaved, String txtPath, String message) {
+            this.printed = printed;
+            this.txtSaved = txtSaved;
+            this.txtPath = txtPath;
+            this.message = message;
+        }
+    }
+
+    /**
+     * Print a receipt for the given bill number.
+     * If no printer is found, generates a TXT to D:\bills\ folder.
+     * @param billNo The bill number to print
+     * @return PrintResult with status and details
+     * @throws Exception if bill data cannot be fetched
+     */
+    public static PrintResult printReceipt(String billNo) throws Exception {
+        PrintService service = findPrintService();
+        
+        if (service != null) {
+            // Direct ESC/POS print using byte array
+            byte[] receiptData = buildReceiptData(billNo);
+            DocFlavor flavor = DocFlavor.BYTE_ARRAY.AUTOSENSE;
+            Doc doc = new SimpleDoc(receiptData, flavor, null);
+            DocPrintJob job = service.createPrintJob();
+            job.print(doc, null);
+            return new PrintResult(true, false, null, "Printed to: " + service.getName());
+        } else {
+            // No printer found - generate TXT fallback
+            String txtPath = generateTxtReceipt(billNo);
+            return new PrintResult(false, true, txtPath, "No printer found. TXT saved to: " + txtPath);
+        }
+    }
+
+    /**
+     * Generate a plain text receipt and save to D:\bills\ folder
+     * @param billNo The bill number
+     * @return The full path to the saved TXT file
+     */
+    public static String generateTxtReceipt(String billNo) throws Exception {
+        // Create output directory
+        File dir = new File(getTxtOutputDir());
+        if (!dir.exists()) dir.mkdirs();
+        
+        // Sanitize bill number for filename
+        String safeBillNo = billNo.replace("/", "-").replace("\\", "-").replace(" ", "_");
+        String fileName = "Bill_" + safeBillNo + ".txt";
+        String filePath = getTxtOutputDir() + File.separator + fileName;
+        
+        // Build plain text receipt (without ESC/POS commands)
+        String receiptText = buildPlainTextReceipt(billNo);
+        
+        // Write to file
+        FileWriter writer = new FileWriter(filePath);
+        writer.write(receiptText);
+        writer.close();
+        
+        return filePath;
+    }
+
+    /**
+     * Generate a PDF receipt and save to D:\bills\ folder
+     * @param billNo The bill number
+     * @return The full path to the saved PDF file
+     */
+    public static String generatePdfReceipt(String billNo) throws Exception {
+        billingBean bill = new billingBean();
+        userBean uBean = new userBean();
+        
+        // Create output directory
+        File dir = new File(getTxtOutputDir());
+        if (!dir.exists()) dir.mkdirs();
+        
+        // Sanitize bill number for filename
+        String safeBillNo = billNo.replace("/", "-").replace("\\", "-").replace(" ", "_");
+        String fileName = "Bill_" + safeBillNo + ".pdf";
+        String filePath = getTxtOutputDir() + File.separator + fileName;
+        
+        // Page size: 80mm width, long auto-height (use a tall page)
+        float mmToPoint = 2.83465f;
+        float pageWidth = 80 * mmToPoint;  // 80mm
+        Rectangle pageSize = new Rectangle(pageWidth, 2000); // tall page, will trim
+        pageSize.setBackgroundColor(BaseColor.WHITE);
+        
+        Document document = new Document(pageSize, 10, 10, 10, 10);
+        PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(filePath));
+        document.open();
+        
+        // Fonts
+        Font fontTitle = new Font(Font.FontFamily.COURIER, 14, Font.BOLD);
+        Font fontNormal = new Font(Font.FontFamily.COURIER, 9);
+        Font fontBold = new Font(Font.FontFamily.COURIER, 9, Font.BOLD);
+        Font fontSmall = new Font(Font.FontFamily.COURIER, 8);
+        Font fontLarge = new Font(Font.FontFamily.COURIER, 12, Font.BOLD);
+        
+        // ===== COMPANY HEADER =====
+        Vector companyDetails = uBean.getCompanyDetails();
+        String companyName = "";
+        String companyAddress = "";
+        String companyGSTIN = "";
+        
+        if (companyDetails != null && companyDetails.size() >= 4) {
+            companyName = companyDetails.get(1) != null ? companyDetails.get(1).toString() : "";
+            companyAddress = companyDetails.get(2) != null ? companyDetails.get(2).toString() : "";
+            companyGSTIN = companyDetails.get(3) != null ? companyDetails.get(3).toString() : "";
+        }
+        
+        Paragraph pCompany = new Paragraph(companyName, fontTitle);
+        pCompany.setAlignment(Element.ALIGN_CENTER);
+        document.add(pCompany);
+        
+        Paragraph pAddr = new Paragraph(companyAddress, fontSmall);
+        pAddr.setAlignment(Element.ALIGN_CENTER);
+        document.add(pAddr);
+        
+        if (!companyGSTIN.isEmpty()) {
+            Paragraph pGst = new Paragraph("GSTIN: " + companyGSTIN, fontSmall);
+            pGst.setAlignment(Element.ALIGN_CENTER);
+            document.add(pGst);
+        }
+        
+        addPdfDivider(document, pageWidth);
+        // ===== BILL INFO =====
+        String billDate = bill.getBillDate(billNo);
+        PdfPTable billInfoTable = new PdfPTable(2);
+        billInfoTable.setWidthPercentage(100);
+        PdfPCell cellBillNo = new PdfPCell(new Phrase("Bill No: " + billNo, fontBold));
+        cellBillNo.setBorder(Rectangle.NO_BORDER);
+        cellBillNo.setHorizontalAlignment(Element.ALIGN_LEFT);
+        PdfPCell cellDate = new PdfPCell(new Phrase(billDate, fontBold));
+        cellDate.setBorder(Rectangle.NO_BORDER);
+        cellDate.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        billInfoTable.addCell(cellBillNo);
+        billInfoTable.addCell(cellDate);
+        document.add(billInfoTable);
+        
+        addPdfDivider(document, pageWidth);
+        
+        // ===== CUSTOMER INFO =====
+        String cusName = bill.getCusName(billNo);
+        String cusNumber = bill.getCusNumber(billNo);
+        Vector customerDetails = bill.getCustomerDetailsByBillNo(billNo);
+        String customerName = cusName;
+        String customerPhone = "-";
+        String customerGSTIN = "-";
+        
+        if (customerDetails != null && customerDetails.size() >= 4) {
+            customerName = customerDetails.get(0) != null ? customerDetails.get(0).toString() : cusName;
+            customerPhone = customerDetails.get(1) != null ? customerDetails.get(1).toString() : cusNumber;
+            customerGSTIN = customerDetails.get(3) != null ? customerDetails.get(3).toString() : "-";
+        } else {
+            customerPhone = cusNumber != null ? cusNumber : "-";
+        }
+        
+        document.add(new Paragraph("Customer: " + customerName, fontSmall));
+        if (!"-".equals(customerPhone) && customerPhone != null && !customerPhone.isEmpty()) {
+            document.add(new Paragraph("Phone: " + customerPhone, fontSmall));
+        }
+        if (!"-".equals(customerGSTIN) && customerGSTIN != null && !customerGSTIN.isEmpty()) {
+            document.add(new Paragraph("GSTIN: " + customerGSTIN, fontSmall));
+        }
+        
+        addPdfDivider(document, pageWidth);
+        
+        // ===== ITEMS TABLE =====
+        PdfPTable itemTable = new PdfPTable(new float[]{5f, 1.2f, 1.5f, 1.8f});
+        itemTable.setWidthPercentage(100);
+        itemTable.setSpacingBefore(3);
+        
+        // Header
+        addPdfCell(itemTable, "ITEM", fontBold, Element.ALIGN_LEFT);
+        addPdfCell(itemTable, "QTY", fontBold, Element.ALIGN_CENTER);
+        addPdfCell(itemTable, "RATE", fontBold, Element.ALIGN_RIGHT);
+        addPdfCell(itemTable, "AMT", fontBold, Element.ALIGN_RIGHT);
+        
+        Vector<Vector<Object>> billDetails = bill.getBillDetailsUsingNo(billNo);
+        double extradisc = bill.getExtraDisc(billNo);
+        
+        double totalAmount = 0, totalDiscount = 0, totalQtyD = 0;
+        double totalTaxableAmount = 0, totalGSTAmount = 0, totalCGST = 0, totalSGST = 0;
+        
+        Map<Integer, Double> gstWiseTaxable = new HashMap<Integer, Double>();
+        Map<Integer, Double> gstWiseCGST = new HashMap<Integer, Double>();
+        Map<Integer, Double> gstWiseSGST = new HashMap<Integer, Double>();
+        
+        for (Vector<Object> prod : billDetails) {
+            String itemName = prod.get(0).toString();
+            double qty = Double.parseDouble(prod.get(1).toString());
+            double itemPrice = Double.parseDouble(prod.get(2).toString());
+            double itemDisc = Double.parseDouble(prod.get(3).toString());
+            double itemTotal = Double.parseDouble(prod.get(4).toString());
+            int gstPer = Integer.parseInt(prod.get(5).toString());
+            
+            double taxableAmount = itemTotal / (1 + (gstPer / 100.0));
+            double gstAmount = itemTotal - taxableAmount;
+            double cgst = gstAmount / 2;
+            double sgst = gstAmount / 2;
+            
+            totalQtyD += qty;
+            totalAmount += itemTotal;
+            totalDiscount += itemDisc;
+            totalTaxableAmount += taxableAmount;
+            totalGSTAmount += gstAmount;
+            totalCGST += cgst;
+            totalSGST += sgst;
+            
+            if (!gstWiseTaxable.containsKey(gstPer)) {
+                gstWiseTaxable.put(gstPer, 0.0);
+                gstWiseCGST.put(gstPer, 0.0);
+                gstWiseSGST.put(gstPer, 0.0);
+            }
+            gstWiseTaxable.put(gstPer, gstWiseTaxable.get(gstPer) + taxableAmount);
+            gstWiseCGST.put(gstPer, gstWiseCGST.get(gstPer) + cgst);
+            gstWiseSGST.put(gstPer, gstWiseSGST.get(gstPer) + sgst);
+            
+            String displayName = gstPer > 0 ? itemName + " (" + gstPer + "%)" : itemName;
+            addPdfCell(itemTable, displayName, fontSmall, Element.ALIGN_LEFT);
+            addPdfCell(itemTable, prod.get(1).toString(), fontSmall, Element.ALIGN_CENTER);
+            addPdfCell(itemTable, df.format(itemPrice), fontSmall, Element.ALIGN_RIGHT);
+            addPdfCell(itemTable, df.format(itemTotal), fontSmall, Element.ALIGN_RIGHT);
+            
+            if (itemDisc > 0) {
+                addPdfCell(itemTable, "", fontSmall, Element.ALIGN_LEFT);
+                addPdfCell(itemTable, "", fontSmall, Element.ALIGN_LEFT);
+                addPdfCell(itemTable, "Disc:", fontSmall, Element.ALIGN_RIGHT);
+                addPdfCell(itemTable, "-" + df.format(itemDisc), fontSmall, Element.ALIGN_RIGHT);
+            }
+        }
+        document.add(itemTable);
+        
+        addPdfDivider(document, pageWidth);
+        
+        // ===== TOTALS =====
+        double subTotalBeforeDiscount = totalAmount + totalDiscount;
+        double finalPaid = totalAmount - extradisc;
+        double paid = bill.getPaidTotal(billNo);
+        double balance = bill.getbalanceTotal(billNo);
+        String numPaid = bill.getNumPaid(paid);
+        
+        addPdfTotalRow(document, "Items:", String.valueOf(totalQtyD), fontNormal);
+        addPdfTotalRow(document, "Sub Total:", "Rs " + df.format(subTotalBeforeDiscount), fontNormal);
+        
+        if (totalDiscount > 0) {
+            addPdfTotalRow(document, "Item Discount:", "- Rs " + df.format(totalDiscount), fontNormal);
+        }
+        if (extradisc > 0) {
+            addPdfTotalRow(document, "Extra Discount:", "- Rs " + df.format(extradisc), fontNormal);
+        }
+        
+        addPdfDivider(document, pageWidth);
+        addPdfTotalRow(document, "TOTAL:", "Rs " + df.format(finalPaid), fontLarge);
+        addPdfDivider(document, pageWidth);
+        
+        addPdfTotalRow(document, "Paid:", "Rs " + df.format(paid), fontNormal);
+        
+        if (balance != 0) {
+            String label = balance > 0 ? "Balance Due:" : "Change:";
+            addPdfTotalRow(document, label, "Rs " + df.format(Math.abs(balance)), fontBold);
+        }
+        
+        // ===== GST SUMMARY =====
+        if (totalGSTAmount > 0) {
+            addPdfDivider(document, pageWidth);
+            document.add(new Paragraph("GST Summary:", fontBold));
+            
+            java.util.List<Integer> gstRates = new ArrayList<Integer>(gstWiseTaxable.keySet());
+            Collections.sort(gstRates);
+            for (Integer rate : gstRates) {
+                if (rate > 0) {
+                    addPdfTotalRow(document, "GST " + rate + "%:", "Taxable: Rs" + df.format(gstWiseTaxable.get(rate)), fontSmall);
+                    addPdfTotalRow(document, "  CGST:", "Rs" + df.format(gstWiseCGST.get(rate)), fontSmall);
+                    addPdfTotalRow(document, "  SGST:", "Rs" + df.format(gstWiseSGST.get(rate)), fontSmall);
+                }
+            }
+            addPdfTotalRow(document, "Total GST:", "Rs " + df.format(totalGSTAmount), fontBold);
+        }
+        
+        addPdfDivider(document, pageWidth);
+        
+        // ===== FOOTER =====
+        Paragraph pAmount = new Paragraph(numPaid.toUpperCase(), fontBold);
+        pAmount.setAlignment(Element.ALIGN_CENTER);
+        document.add(pAmount);
+        
+        Paragraph pThanks = new Paragraph("\nThank You! Visit Again", fontSmall);
+        pThanks.setAlignment(Element.ALIGN_CENTER);
+        document.add(pThanks);
+        
+        document.close();
+        return filePath;
+    }
+    
+    // ===== PDF HELPER METHODS =====
+    
+    private static void addPdfDivider(Document doc, float width) throws DocumentException {
+        Paragraph p = new Paragraph("  ");
+        p.setSpacingBefore(2);
+        p.setSpacingAfter(2);
+        LineSeparator line = new LineSeparator(0.5f, 100, BaseColor.BLACK, Element.ALIGN_CENTER, -2);
+        doc.add(line);
+    }
+    
+    private static void addPdfCell(PdfPTable table, String text, Font font, int align) {
+        PdfPCell cell = new PdfPCell(new Phrase(text, font));
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setHorizontalAlignment(align);
+        cell.setPaddingBottom(2);
+        cell.setPaddingTop(1);
+        table.addCell(cell);
+    }
+    
+    private static void addPdfTotalRow(Document doc, String label, String value, Font font) throws DocumentException {
+        PdfPTable table = new PdfPTable(2);
+        table.setWidthPercentage(100);
+        PdfPCell cellLabel = new PdfPCell(new Phrase(label, font));
+        cellLabel.setBorder(Rectangle.NO_BORDER);
+        cellLabel.setHorizontalAlignment(Element.ALIGN_LEFT);
+        PdfPCell cellValue = new PdfPCell(new Phrase(value, font));
+        cellValue.setBorder(Rectangle.NO_BORDER);
+        cellValue.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        table.addCell(cellLabel);
+        table.addCell(cellValue);
+        doc.add(table);
+    }
+
+    /**
+     * Helper method to append byte array to ByteArrayOutputStream
+     */
+    private static void writeBytes(ByteArrayOutputStream baos, byte[] data) {
+        try {
+            baos.write(data);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Helper method to write string as bytes
+     */
+    private static void writeString(ByteArrayOutputStream baos, String str) {
+        try {
+            baos.write(str.getBytes("UTF-8"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Build the full ESC/POS receipt data as byte array (optimized for minimal paper usage)
+     */
+    /**
+     * Build plain text receipt (without ESC/POS commands) for saving to file
+     */
+    private static String buildPlainTextReceipt(String billNo) throws Exception {
+        billingBean bill = new billingBean();
+        userBean uBean = new userBean();
+        
+        StringBuilder sb = new StringBuilder();
+        
+        // ===== COMPANY HEADER =====
+        Vector companyDetails = uBean.getCompanyDetails();
+        String companyName = "";
+        String companyAddress = "";
+        String companyGSTIN = "";
+        
+        if (companyDetails != null && companyDetails.size() >= 4) {
+            companyName = companyDetails.get(1) != null ? companyDetails.get(1).toString() : "";
+            companyAddress = companyDetails.get(2) != null ? companyDetails.get(2).toString() : "";
+            companyGSTIN = companyDetails.get(3) != null ? companyDetails.get(3).toString() : "";
+        }
+        
+        // Center align company name
+        sb.append(centerText(companyName)).append("\n");
+        
+        // Split address by newlines and center each line
+        if (!companyAddress.isEmpty()) {
+            String[] addressLines = companyAddress.split("\\r?\\n");
+            for (String line : addressLines) {
+                if (line != null && !line.trim().isEmpty()) {
+                    sb.append(centerText(line.trim())).append("\n");
+                }
+            }
+        }
+        
+        if (!companyGSTIN.isEmpty()) {
+            sb.append(centerText("GSTIN: " + companyGSTIN)).append("\n");
+        }
+        
+        sb.append(divider());
+        
+        // ===== BILL INFO =====
+        String billDate = bill.getBillDate(billNo);
+        sb.append(padRight("Bill: " + billNo, RECEIPT_WIDTH - billDate.length()));
+        sb.append(billDate).append("\n");
+        
+        // ===== CUSTOMER INFO ===== (no divider between bill and customer)
+        String cusName = bill.getCusName(billNo);
+        String cusNumber = bill.getCusNumber(billNo);
+        Vector customerDetails = bill.getCustomerDetailsByBillNo(billNo);
+        String customerName = cusName;
+        String customerPhone = "-";
+        String customerGSTIN = "-";
+        
+        if (customerDetails != null && customerDetails.size() >= 4) {
+            customerName = customerDetails.get(0) != null ? customerDetails.get(0).toString() : cusName;
+            customerPhone = customerDetails.get(1) != null ? customerDetails.get(1).toString() : cusNumber;
+            customerGSTIN = customerDetails.get(3) != null ? customerDetails.get(3).toString() : "-";
+        } else {
+            customerPhone = cusNumber != null ? cusNumber : "-";
+        }
+        
+        sb.append("Cust: ").append(customerName).append("\n");
+        if (!"-".equals(customerPhone) && customerPhone != null && !customerPhone.isEmpty()) {
+            sb.append("Ph: ").append(customerPhone).append("\n");
+        }
+        if (!"-".equals(customerGSTIN) && customerGSTIN != null && !customerGSTIN.isEmpty()) {
+            sb.append("GSTIN: ").append(customerGSTIN).append("\n");
+        }
+        
+        sb.append(divider());
+        
+        // ===== ITEMS HEADER =====
+        sb.append(formatItemHeader());
+        sb.append(divider());
+        
+        // ===== ITEMS =====
+        Vector<Vector<Object>> billDetails = bill.getBillDetailsUsingNo(billNo);
+        double extradisc = bill.getExtraDisc(billNo);
+        
+        double totalAmount = 0;
+        double totalDiscount = 0;
+        double totalQtyD = 0;
+        double totalTaxableAmount = 0;
+        double totalGSTAmount = 0;
+        double totalCGST = 0;
+        double totalSGST = 0;
+        
+        Map<Integer, Double> gstWiseTaxable = new HashMap<Integer, Double>();
+        Map<Integer, Double> gstWiseCGST = new HashMap<Integer, Double>();
+        Map<Integer, Double> gstWiseSGST = new HashMap<Integer, Double>();
+        
+        for (Vector<Object> prod : billDetails) {
+            String itemName = prod.get(0).toString();
+            double qty = Double.parseDouble(prod.get(1).toString());
+            double itemPrice = Double.parseDouble(prod.get(2).toString());
+            double itemDisc = Double.parseDouble(prod.get(3).toString());
+            double itemTotal = Double.parseDouble(prod.get(4).toString());
+            int gstPer = Integer.parseInt(prod.get(5).toString());
+            
+            // Calculations
+            double taxableAmount = itemTotal / (1 + (gstPer / 100.0));
+            double gstAmount = itemTotal - taxableAmount;
+            double cgst = gstAmount / 2;
+            double sgst = gstAmount / 2;
+            
+            totalQtyD += qty;
+            totalAmount += itemTotal;
+            totalDiscount += itemDisc;
+            totalTaxableAmount += taxableAmount;
+            totalGSTAmount += gstAmount;
+            totalCGST += cgst;
+            totalSGST += sgst;
+            
+            if (!gstWiseTaxable.containsKey(gstPer)) {
+                gstWiseTaxable.put(gstPer, 0.0);
+                gstWiseCGST.put(gstPer, 0.0);
+                gstWiseSGST.put(gstPer, 0.0);
+            }
+            gstWiseTaxable.put(gstPer, gstWiseTaxable.get(gstPer) + taxableAmount);
+            gstWiseCGST.put(gstPer, gstWiseCGST.get(gstPer) + cgst);
+            gstWiseSGST.put(gstPer, gstWiseSGST.get(gstPer) + sgst);
+            
+            // Print item
+            sb.append(formatItemRow(itemName, prod.get(1).toString(), df.format(itemPrice), df.format(itemTotal), gstPer));
+            if (itemDisc > 0) {
+                sb.append(padLeft("Disc: -" + df.format(itemDisc), RECEIPT_WIDTH)).append("\n");
+            }
+        }
+        
+        sb.append(divider());
+        
+        // ===== TOTALS =====
+        double subTotalBeforeDiscount = totalAmount + totalDiscount;
+        double finalPaid = totalAmount - extradisc;
+        double paid = bill.getPaidTotal(billNo);
+        double balance = bill.getbalanceTotal(billNo);
+        String numPaid = bill.getNumPaid(paid);
+        
+        sb.append(formatTotalRow("Items:", String.valueOf((int)totalQtyD)));
+        
+        if (totalDiscount > 0) {
+            sb.append(formatTotalRow("Item Disc:", "-Rs " + df.format(totalDiscount)));
+        }
+        if (extradisc > 0) {
+            sb.append(formatTotalRow("Extra Disc:", "-Rs " + df.format(extradisc)));
+        }
+        
+        sb.append(divider());
+        sb.append(formatTotalRow("TOTAL:", "Rs " + df.format(finalPaid)));
+        sb.append(divider());
+        
+        sb.append(formatTotalRow("Paid:", "Rs " + df.format(paid)));
+        
+        if (balance != 0) {
+            String label = balance > 0 ? "Balance:" : "Change:";
+            sb.append(formatTotalRow(label, "Rs " + df.format(Math.abs(balance))));
+        }
+        
+        // ===== GST SUMMARY (compact) =====
+        if (totalGSTAmount > 0) {
+            sb.append(divider());
+            sb.append("GST Summary:\n");
+            
+            java.util.List<Integer> gstRates = new ArrayList<Integer>(gstWiseTaxable.keySet());
+            Collections.sort(gstRates);
+            for (Integer rate : gstRates) {
+                if (rate > 0) {
+                    sb.append("GST" + rate + "% Txbl:Rs" + df.format(gstWiseTaxable.get(rate)) + "\n");
+                    sb.append("CGST:Rs" + df.format(gstWiseCGST.get(rate)) + 
+                             " SGST:Rs" + df.format(gstWiseSGST.get(rate)) + "\n");
+                }
+            }
+            sb.append(formatTotalRow("Total GST:", "Rs " + df.format(totalGSTAmount)));
+        }
+        
+        sb.append(divider());
+        
+        // ===== FOOTER =====
+        sb.append(centerText(numPaid.toUpperCase())).append("\n");
+        sb.append(centerText("Thank You! Visit Again")).append("\n");
+        sb.append("\n\n");
+        
+        return sb.toString();
+    }
+
+    private static byte[] buildReceiptData(String billNo) throws Exception {
+        billingBean bill = new billingBean();
+        userBean uBean = new userBean();
+        
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        
+        // Initialize printer
+        writeBytes(baos, INIT);
+        writeBytes(baos, FONT_NORMAL);  // Normal font size
+        writeBytes(baos, FONT_A);       // Use Font A (default/larger)
+        
+        // ===== COMPANY HEADER =====
+        Vector companyDetails = uBean.getCompanyDetails();
+        String companyName = "";
+        String companyAddress = "";
+        String companyGSTIN = "";
+        
+        if (companyDetails != null && companyDetails.size() >= 4) {
+            companyName = companyDetails.get(1) != null ? companyDetails.get(1).toString() : "";
+            companyAddress = companyDetails.get(2) != null ? companyDetails.get(2).toString() : "";
+            companyGSTIN = companyDetails.get(3) != null ? companyDetails.get(3).toString() : "";
+        }
+        
+        writeBytes(baos, ALIGN_CENTER);
+        writeBytes(baos, BOLD_ON);
+        writeString(baos, companyName + "\n");
+        writeBytes(baos, BOLD_OFF);
+        
+        // Handle multi-line address
+        if (!companyAddress.isEmpty()) {
+            String[] addressLines = companyAddress.split("\\r?\\n");
+            for (String line : addressLines) {
+                if (line != null && !line.trim().isEmpty()) {
+                    writeString(baos, line.trim() + "\n");
+                }
+            }
+        }
+        
+        if (!companyGSTIN.isEmpty()) {
+            writeString(baos, "GSTIN: " + companyGSTIN + "\n");
+        }
+        
+        writeDivider(baos);
+        
+        // ===== BILL INFO =====
+        writeBytes(baos, ALIGN_LEFT);
+        String billDate = bill.getBillDate(billNo);
+        writeString(baos, padRight("Bill: " + billNo, RECEIPT_WIDTH - billDate.length()) + billDate + "\n");
+        
+        // ===== CUSTOMER INFO ===== (no divider between bill and customer)
+        String cusName = bill.getCusName(billNo);
+        String cusNumber = bill.getCusNumber(billNo);
+        Vector customerDetails = bill.getCustomerDetailsByBillNo(billNo);
+        String customerName = cusName;
+        String customerPhone = "-";
+        String customerGSTIN = "-";
+        
+        if (customerDetails != null && customerDetails.size() >= 4) {
+            customerName = customerDetails.get(0) != null ? customerDetails.get(0).toString() : cusName;
+            customerPhone = customerDetails.get(1) != null ? customerDetails.get(1).toString() : cusNumber;
+            customerGSTIN = customerDetails.get(3) != null ? customerDetails.get(3).toString() : "-";
+        } else {
+            customerPhone = cusNumber != null ? cusNumber : "-";
+        }
+        
+        writeString(baos, "Cust: " + customerName + "\n");
+        if (!"-".equals(customerPhone) && customerPhone != null && !customerPhone.isEmpty()) {
+            writeString(baos, "Ph: " + customerPhone + "\n");
+        }
+        if (!"-".equals(customerGSTIN) && customerGSTIN != null && !customerGSTIN.isEmpty()) {
+            writeString(baos, "GSTIN: " + customerGSTIN + "\n");
+        }
+        
+        writeDivider(baos);
+        
+        // ===== ITEMS HEADER =====
+        writeBytes(baos, BOLD_ON);
+        writeString(baos, formatItemHeader());
+        writeBytes(baos, BOLD_OFF);
+        writeDivider(baos);
+        
+        // ===== ITEMS =====
+        Vector<Vector<Object>> billDetails = bill.getBillDetailsUsingNo(billNo);
+        double extradisc = bill.getExtraDisc(billNo);
+        
+        double totalAmount = 0;
+        double totalDiscount = 0;
+        double totalQtyD = 0;
+        double totalTaxableAmount = 0;
+        double totalGSTAmount = 0;
+        double totalCGST = 0;
+        double totalSGST = 0;
+        
+        Map<Integer, Double> gstWiseTaxable = new HashMap<Integer, Double>();
+        Map<Integer, Double> gstWiseCGST = new HashMap<Integer, Double>();
+        Map<Integer, Double> gstWiseSGST = new HashMap<Integer, Double>();
+        
+        for (Vector<Object> prod : billDetails) {
+            String itemName = prod.get(0).toString();
+            double qty = Double.parseDouble(prod.get(1).toString());
+            double itemPrice = Double.parseDouble(prod.get(2).toString());
+            double itemDisc = Double.parseDouble(prod.get(3).toString());
+            double itemTotal = Double.parseDouble(prod.get(4).toString());
+            int gstPer = Integer.parseInt(prod.get(5).toString());
+            
+            // Calculations
+            double taxableAmount = itemTotal / (1 + (gstPer / 100.0));
+            double gstAmount = itemTotal - taxableAmount;
+            double cgst = gstAmount / 2;
+            double sgst = gstAmount / 2;
+            
+            totalQtyD += qty;
+            totalAmount += itemTotal;
+            totalDiscount += itemDisc;
+            totalTaxableAmount += taxableAmount;
+            totalGSTAmount += gstAmount;
+            totalCGST += cgst;
+            totalSGST += sgst;
+            
+            if (!gstWiseTaxable.containsKey(gstPer)) {
+                gstWiseTaxable.put(gstPer, 0.0);
+                gstWiseCGST.put(gstPer, 0.0);
+                gstWiseSGST.put(gstPer, 0.0);
+            }
+            gstWiseTaxable.put(gstPer, gstWiseTaxable.get(gstPer) + taxableAmount);
+            gstWiseCGST.put(gstPer, gstWiseCGST.get(gstPer) + cgst);
+            gstWiseSGST.put(gstPer, gstWiseSGST.get(gstPer) + sgst);
+            
+            // Print item
+            writeString(baos, formatItemRow(itemName, prod.get(1).toString(), df.format(itemPrice), df.format(itemTotal), gstPer));
+            if (itemDisc > 0) {
+                writeString(baos, padLeft("Disc: -" + df.format(itemDisc), RECEIPT_WIDTH) + "\n");
+            }
+        }
+        
+        writeDivider(baos);
+        
+        // ===== TOTALS =====
+        double subTotalBeforeDiscount = totalAmount + totalDiscount;
+        double finalPaid = totalAmount - extradisc;
+        double paid = bill.getPaidTotal(billNo);
+        double balance = bill.getbalanceTotal(billNo);
+        String numPaid = bill.getNumPaid(paid);
+        
+        writeString(baos, formatTotalRow("Items:", String.valueOf((int)totalQtyD)));
+        
+        if (totalDiscount > 0) {
+            writeString(baos, formatTotalRow("Item Disc:", "-Rs " + df.format(totalDiscount)));
+        }
+        if (extradisc > 0) {
+            writeString(baos, formatTotalRow("Extra Disc:", "-Rs " + df.format(extradisc)));
+        }
+        
+        writeDivider(baos);
+        
+        // TOTAL line (bold but same size)
+        writeBytes(baos, BOLD_ON);
+        writeString(baos, formatTotalRow("TOTAL:", "Rs " + df.format(finalPaid)));
+        writeBytes(baos, BOLD_OFF);
+        
+        writeDivider(baos);
+        
+        writeString(baos, formatTotalRow("Paid:", "Rs " + df.format(paid)));
+        
+        if (balance != 0) {
+            writeBytes(baos, BOLD_ON);
+            String label = balance > 0 ? "Balance:" : "Change:";
+            writeString(baos, formatTotalRow(label, "Rs " + df.format(Math.abs(balance))));
+            writeBytes(baos, BOLD_OFF);
+        }
+        
+        // ===== GST SUMMARY (compact) =====
+        if (totalGSTAmount > 0) {
+            writeDivider(baos);
+            writeBytes(baos, BOLD_ON);
+            writeString(baos, "GST Summary:\n");
+            writeBytes(baos, BOLD_OFF);
+            
+            java.util.List<Integer> gstRates = new ArrayList<Integer>(gstWiseTaxable.keySet());
+            Collections.sort(gstRates);
+            for (Integer rate : gstRates) {
+                if (rate > 0) {
+                    writeString(baos, "GST" + rate + "% Txbl:Rs" + df.format(gstWiseTaxable.get(rate)) + "\n");
+                    writeString(baos, "CGST:Rs" + df.format(gstWiseCGST.get(rate)) + 
+                                     " SGST:Rs" + df.format(gstWiseSGST.get(rate)) + "\n");
+                }
+            }
+            writeBytes(baos, BOLD_ON);
+            writeString(baos, formatTotalRow("Total GST:", "Rs " + df.format(totalGSTAmount)));
+            writeBytes(baos, BOLD_OFF);
+        }
+        
+        writeDivider(baos);
+        
+        // ===== FOOTER =====
+        writeBytes(baos, ALIGN_CENTER);
+        writeString(baos, numPaid.toUpperCase() + "\n");
+        writeString(baos, "Thank You! Visit Again\n");
+        
+        // Feed 3 lines before cut
+        writeBytes(baos, FEED_3_LINES);
+        
+        // Partial cut paper
+        writeBytes(baos, CUT_PAPER);
+        
+        return baos.toByteArray();
+    }
+    
+    // ===== FORMATTING HELPERS =====
+    
+    /**
+     * Write a divider line to the byte stream
+     */
+    private static void writeDivider(ByteArrayOutputStream baos) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < RECEIPT_WIDTH; i++) sb.append("-");
+        sb.append("\n");
+        writeString(baos, sb.toString());
+    }
+    
+    private static String divider() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < RECEIPT_WIDTH; i++) sb.append("-");
+        sb.append("\n");
+        return sb.toString();
+    }
+    
+    private static String formatItemHeader() {
+        // Adjust column widths based on receipt width
+        if (RECEIPT_WIDTH == RECEIPT_WIDTH_58MM) {
+            // 58mm: ITEM(18) QTY(4) RATE(5) AMT(5) = 32 chars
+            return padRight("ITEM", 18) + padRight("Q", 4) + padLeft("RATE", 5) + padLeft("AMT", 5) + "\n";
+        } else {
+            // 80mm: ITEM(28) QTY(6) RATE(7) AMT(7) = 48 chars
+            return padRight("ITEM", 28) + padRight("QTY", 6) + padLeft("RATE", 7) + padLeft("AMT", 7) + "\n";
+        }
+    }
+    
+    private static String formatItemRow(String name, String qty, String rate, String amt, int gstPer) {
+        StringBuilder sb = new StringBuilder();
+        
+        if (RECEIPT_WIDTH == RECEIPT_WIDTH_58MM) {
+            // 58mm layout: ITEM(18) Q(4) RATE(5) AMT(5)
+            int nameWidth = 18;
+            // Add GST indicator to name if present
+            if (gstPer > 0 && name.length() < nameWidth - 4) {
+                name = name + "(" + gstPer + "%)";
+            }
+            if (name.length() > nameWidth) {
+                name = name.substring(0, nameWidth);
+            }
+            sb.append(padRight(name, nameWidth));
+            sb.append(padRight(qty, 4));
+            sb.append(padLeft(rate, 5));
+            sb.append(padLeft(amt, 5));
+        } else {
+            // 80mm layout: ITEM(28) QTY(6) RATE(7) AMT(7)
+            int nameWidth = 28;
+            // Add GST indicator if space permits
+            if (gstPer > 0 && name.length() < nameWidth - 5) {
+                name = name + "(" + gstPer + "%)";
+            }
+            if (name.length() > nameWidth) {
+                name = name.substring(0, nameWidth);
+            }
+            sb.append(padRight(name, nameWidth));
+            sb.append(padRight(qty, 6));
+            sb.append(padLeft(rate, 7));
+            sb.append(padLeft(amt, 7));
+        }
+        
+        sb.append("\n");
+        return sb.toString();
+    }
+    
+    private static String formatTotalRow(String label, String value) {
+        int padding = RECEIPT_WIDTH - label.length() - value.length();
+        if (padding < 1) padding = 1;
+        StringBuilder sb = new StringBuilder();
+        sb.append(label);
+        for (int i = 0; i < padding; i++) sb.append(" ");
+        sb.append(value);
+        sb.append("\n");
+        return sb.toString();
+    }
+    
+    private static String padRight(String s, int width) {
+        if (s == null) s = "";
+        if (s.length() >= width) return s.substring(0, width);
+        StringBuilder sb = new StringBuilder(s);
+        while (sb.length() < width) sb.append(" ");
+        return sb.toString();
+    }
+    
+    private static String padLeft(String s, int width) {
+        if (s == null) s = "";
+        if (s.length() >= width) return s;
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < width - s.length()) sb.append(" ");
+        sb.append(s);
+        return sb.toString();
+    }
+
+    private static String centerText(String text) {
+        if (text == null) text = "";
+        if (text.length() >= RECEIPT_WIDTH) return text.substring(0, RECEIPT_WIDTH);
+        int totalPadding = RECEIPT_WIDTH - text.length();
+        int leftPadding = totalPadding / 2;
+        int rightPadding = totalPadding - leftPadding;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < leftPadding; i++) sb.append(" ");
+        sb.append(text);
+        for (int i = 0; i < rightPadding; i++) sb.append(" ");
+        return sb.toString();
+    }
+
+    /**
+     * Test entry point - can still be run standalone
+     */
+    public static void main(String[] args) {
+        try {
+            System.out.println("Available printers:");
+            for (String p : getAvailablePrinters()) {
+                System.out.println("  - " + p);
+            }
+            
+            if (args.length > 0) {
+                System.out.println("\nPrinting bill: " + args[0]);
+                printReceipt(args[0]);
+                System.out.println("Printed successfully!");
+            } else {
+                System.out.println("\nUsage: java print.POSPrinter <billNo>");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}

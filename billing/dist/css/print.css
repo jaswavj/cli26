@@ -1,0 +1,143 @@
+
+
+body {
+  background: rgb(204,204,204);
+  font-family: -apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+page {
+  background: white;
+  display: block;
+  margin: 0 auto;
+  margin-bottom: 0.5cm;
+  
+}
+button {
+  background-color: #008CBA;
+  border-radius: 10px;
+  box-shadow: 0 0 0.5cm rgba(0,0,0,0.5);
+  color: white;
+  padding: 10px 15px;
+  text-align: center;
+  font-size: 16px;
+  margin: 10px;
+  cursor: pointer;
+}
+
+page[size="A4"] {  
+  width: 21cm;
+}
+@media print {
+  body, page {
+    margin: 0;
+    box-shadow: 0;
+  }
+}
+@media print {
+    #printbtn {
+        display :  none;
+    }
+    }
+.bgcolor{
+background-color: #aba5a5;
+}
+.bordercolor {
+	border-right: 1px solid black;
+  border-top: 1px solid black;
+  border-bottom: 1px solid black;
+}
+h4,h3,p{margin: 0px;pading: 0px;}
+.col-print-1 {width:8%;  float:left;}
+.col-print-2 {width:16%; float:left;}
+.col-print-3 {width:25%; float:left; }
+.col-print-4 {width:33%; float:left;}
+.col-print-5 {width:42%; float:left;}
+.col-print-6 {width:50%; float:left;}
+.col-print-7 {width:58%; float:left;}
+.col-print-8 {width:66%; float:left;}
+.col-print-9 {width:75%; float:left;}
+.col-print-10{width:83%; float:left;}
+.col-print-11{width:92%; float:left;}
+.col-print-12{width:100%; float:left;}
+.overflow{overflow-x:hidden;}
+
+b{
+font-weight: 700;
+}
+h2{
+padding: 0px;
+margin: 0px;
+}
+h5{
+padding: 0px;
+margin: 10px;
+
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+    }
+div{
+margin: 0px;
+padding: 0px;
+}
+.tablebor{
+border-top : 1px solid black;
+}
+.totaltop
+{
+border-bottom : 1px solid black;
+
+border-top : 1px solid black;
+border-left : 1px solid black;
+border-right : 1px solid black;
+
+}
+
+
+
+thead.report-header {
+      display:table-header-group;
+}
+tfoot.report-footer {
+      display:table-footer-group;
+}
+
+table { page-break-inside:auto }
+    tr    { page-break-inside:avoid; page-break-after:auto }
+    thead { display:table-header-group }
+    tfoot { display:table-footer-group }
+    
+.fltleft {
+  border-radius: 100%;
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  float: left;
+  margin-right: 20px;
+}
+.fltright {
+  border-radius: 100%;
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  float: right;
+  margin-right: 20px;
+}
+.fltleft {
+  border-radius: 100%;
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  float: left;
+  margin-right: 20px;
+}
+
+    /* Remove background color from table header */
+    table thead th {
+        background-color: transparent !important;
+    }
+
+    /* Optional: remove table borders completely */
+    table, table td, table th {
+        border: none !important;
+    }

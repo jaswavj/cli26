@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<workspace>
+	<settings>
+		<label>saiExchange</label>
+	</settings>
+	<users>
+		<user>
+			<path>saiExchange.jcu</path>
+		</user>
+	</users>
+	<projects>
+		<project>
+			<path>saiExchange.jcp</path>
+		</project>
+	</projects>
+</workspace>

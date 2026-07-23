@@ -1,0 +1,167 @@
+html,body {
+    font-size: smaller;
+    background: #f5f7fa;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.navbar {
+    background-color: #4e73df;
+}
+
+.navbar-brand {
+    color: #fff !important;
+}
+
+.btn-color{
+    color: #836ceb;
+}
+
+.save-btn {
+    color: #4e73df;
+}
+
+.print-btn {
+    color: #65e854;
+}
+
+.order-btn {
+    color: #ffc107;
+}
+
+.card{
+    padding: 5px;
+}
+
+/* .input-outline {
+    position: relative;
+}
+
+.input-outline input {
+    border-radius: 10px;
+    background: transparent;
+    outline: none;
+}
+
+.input-outline label {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    background-color: inherit; 
+    padding: 0 5px;
+    pointer-events: none;
+    transition: 0.2s ease all;
+}
+
+.input-outline input:focus + label,
+.input-outline input:not(:placeholder-shown) + label {
+    top: 0;
+    font-size: 12px;
+} */
+
+.input-outline {
+    position: relative;
+}
+
+.input-outline input {
+    border-radius: 10px;
+    background: transparent;
+    outline: none;
+}
+
+.input-outline label {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    background: white; /* match your form background */
+    padding: 0 5px;
+    pointer-events: none;
+    transition: 0.2s ease all;
+}
+
+/* When focused or filled */
+.input-outline input:focus + label,
+.input-outline input:not(:placeholder-shown) + label {
+    top: 0;
+    transform: translateY(-50%);
+    font-size: 12px;
+    left: 8px;
+}
+
+.form-control {
+    border-color: #c9a227;
+}
+.btn-primary {
+    background: linear-gradient(135deg, #c9a227, #a07c1a) !important;
+    border-color: #c9a227 !important;
+}
+
+/* Remove old sidebar styles - now in navbar.jsp */
+/*#stockTable {
+    font-size: 8px;
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    background-color: #2a0d3d; 
+    color: #e0d9ff; 
+}
+#stockTable thead th {
+    background: linear-gradient(135deg, #570a57, #570a57, #570a57);
+    color: #fff;
+    font-weight: 400;
+    text-transform: uppercase;
+    font-size: 11px;
+    border-color: #6a1b9a;
+}*/
+table.table, table.table-striped, table.table-bordered {
+    font-size: 12px; 
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    background-color: #1a2540; /* Dark Navy background */
+    color: #e8eaf0; /* Light text color */
+}
+
+table.table thead th, table.table-striped thead th, table.table-bordered thead th {
+    background: linear-gradient(135deg, #1a2540, #1e2d55); 
+    color: #fff;
+    font-weight: 400;
+    text-transform: uppercase;
+    font-size: 11px;
+    border-color: rgba(201, 162, 39, 0.3); 
+    padding: 7px 15px;
+}
+.container {
+    overflow-x: auto; /* Enable horizontal scrolling */
+    max-width: 100%;   /* Ensure the wrapper is contained */
+    border-radius: 10px;
+    padding-left: 15px; /* Reduced padding for mobile */
+    padding-right: 15px; /* Reduced padding for mobile */
+}
+
+/* Responsive padding for larger screens */
+@media (min-width: 768px) {
+    .container {
+        padding-left: 40px;
+        padding-right: 40px;
+    }
+}
+.btn-outline-violet {
+    color: #1a2540;           /* Navy text */
+    border-color: #1a2540;    /* Navy border */
+}
+
+.btn-outline-violet:hover {
+    color: #fff;
+    background: linear-gradient(135deg, #1a2540, #1e2d55); 
+    border-color: #1a2540;
+}
