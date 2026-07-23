@@ -1,0 +1,7 @@
+`ce_cus_advance`
+`ce_cus_due`
+`ce_cus_due_collection`
+`ce_customer_account`
+
+
+`ce_bill_ledger`---------------ALL BILL
