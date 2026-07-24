@@ -2,6 +2,7 @@
 <%@ page language="java" import= "java.util.*"%>
 <%@ page errorPage="" %>
 <jsp:useBean id="prod" class="product.productBean" />
+<jsp:useBean id="currency" class="currency.currencyBean" />
 <%
 
 // Session check
@@ -10,6 +11,7 @@ if (userId == null) {
     response.sendRedirect(request.getContextPath() + "/index.jsp");
     return;
 }
+Vector paymentMethods = currency.getPaymentMethods();
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -86,6 +88,20 @@ String type = request.getParameter("type");
                         <label class="form-label fw-semibold">Description</label>
                         <textarea name="description" id="description" class="form-control fg-inp" rows="4" placeholder="Type anything you want to store here"></textarea>
                     </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Payment Method</label>
+                            <select name="paymentId" id="paymentId" class="form-select fg-inp" required>
+                                <option value="">Select payment method</option>
+                                <% for (int i = 0; i < paymentMethods.size(); i++) {
+                                    Vector pm = (Vector) paymentMethods.get(i);
+                                %>
+                                <option value="<%= pm.elementAt(0) %>"><%= pm.elementAt(1) %></option>
+                                <% } %>
+                            </select>
+                        </div>
+                    </div>
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
@@ -107,8 +123,6 @@ String type = request.getParameter("type");
                             <i class="fa-solid fa-floppy-disk me-2"></i>Save Expense
                         </button>
                     </div>
-                        </button>
-                    </div>
                 </form>
             </div>
         </div>
@@ -117,6 +131,7 @@ String type = request.getParameter("type");
     <script>
         function validateForm() {
             const expenseType = document.getElementById('expenseType').value;
+            const paymentId = document.getElementById('paymentId').value;
             const amount = document.getElementById('amount').value;
             const content = document.getElementById('content').value;
             const expenseDate = document.getElementById('expenseDate').value;
@@ -124,6 +139,11 @@ String type = request.getParameter("type");
             
             if (!expenseType) {
                 alert('Please select an expense type');
+                return false;
+            }
+
+            if (!paymentId) {
+                alert('Please select a payment method');
                 return false;
             }
             

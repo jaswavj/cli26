@@ -448,29 +448,98 @@ public void blockExpenseType(int id) throws Exception {
 }
 
 //////////////////////////----------------------------
-public void addExpenseEntry(int expenseType, String content, String description, double amount, String expenseDateTime, int userId) throws Exception {
+private int insertGeneratedId(PreparedStatement pt) throws Exception {
+    ResultSet rs = null;
+    try {
+        rs = pt.getGeneratedKeys();
+        if (rs.next()) {
+            return rs.getInt(1);
+        }
+        throw new Exception("Failed to retrieve generated id");
+    } finally {
+        if (rs != null) try { rs.close(); } catch (Exception e) { }
+    }
+}
+
+private int getPaymentMethodIsCash(Connection con, int paymentId) throws Exception {
+    PreparedStatement pt = null;
+    ResultSet rs = null;
+    try {
+        pt = con.prepareStatement(
+            "SELECT is_cash FROM ce_payment_method WHERE id = ? AND is_active = 1"
+        );
+        pt.setInt(1, paymentId);
+        rs = pt.executeQuery();
+        if (!rs.next()) {
+            throw new Exception("Invalid payment method selected");
+        }
+        return rs.getInt("is_cash");
+    } finally {
+        if (rs != null) try { rs.close(); } catch (Exception e) { }
+        if (pt != null) try { pt.close(); } catch (Exception e) { }
+    }
+}
+
+private BigDecimal[] resolveCashBankAmounts(Connection con, int paymentId, BigDecimal amount) throws Exception {
+    int isCash = getPaymentMethodIsCash(con, paymentId);
+    BigDecimal[] cashBank = new BigDecimal[2];
+    if (isCash == 1) {
+        cashBank[0] = amount;
+        cashBank[1] = BigDecimal.ZERO;
+    } else {
+        cashBank[0] = BigDecimal.ZERO;
+        cashBank[1] = amount;
+    }
+    return cashBank;
+}
+
+public void addExpenseEntry(int expenseType, String content, String description, double amount, String expenseDateTime, int userId, int paymentId) throws Exception {
+    if (paymentId <= 0) {
+        throw new Exception("Payment method is required");
+    }
+    if (amount <= 0) {
+        throw new Exception("Amount must be greater than zero");
+    }
+
     Connection con = null;
     PreparedStatement pt = null;
+    PreparedStatement ledgerPt = null;
 
     try {
         con = util.DBConnectionManager.getConnectionFromPool();
         con.setAutoCommit(false);
 
-        String sql = "INSERT INTO expense_entry(exp_type, content, description, amount, exc_date_time, entry_date_time, uid, is_active) VALUES (?, ?, ?, ?, ?, NOW(), ?, 1)";
-        pt = con.prepareStatement(sql);
+        BigDecimal expenseAmount = BigDecimal.valueOf(amount);
+        BigDecimal[] cashBank = resolveCashBankAmounts(con, paymentId, expenseAmount);
+
+        String sql = "INSERT INTO expense_entry(exp_type, content, description, amount, payment_id, exc_date_time, entry_date_time, uid, is_active) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, 1)";
+        pt = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
         pt.setInt(1, expenseType);
         pt.setString(2, content);
         pt.setString(3, description);
-        pt.setDouble(4, amount);
-        pt.setString(5, expenseDateTime);
-        pt.setInt(6, userId);
+        pt.setBigDecimal(4, expenseAmount);
+        pt.setInt(5, paymentId);
+        pt.setString(6, expenseDateTime);
+        pt.setInt(7, userId);
 
         int rows = pt.executeUpdate();
-        if (rows > 0) {
-            System.out.println("Expense entry inserted successfully.");
-        } else {
-            System.out.println("No rows inserted.");
+        if (rows <= 0) {
+            throw new Exception("Failed to save expense entry");
         }
+        int expenseId = insertGeneratedId(pt);
+        pt.close();
+        pt = null;
+
+        ledgerPt = con.prepareStatement(
+            "INSERT INTO ce_bill_ledger (bill_type, bill_id, advance, final_advance, due, final_due, is_cash, is_bank, payment_id, created_at) " +
+            "VALUES (5, ?, 0, 0, 0, 0, ?, ?, ?, ?)"
+        );
+        ledgerPt.setInt(1, expenseId);
+        ledgerPt.setBigDecimal(2, cashBank[0]);
+        ledgerPt.setBigDecimal(3, cashBank[1]);
+        ledgerPt.setInt(4, paymentId);
+        ledgerPt.setTimestamp(5, Timestamp.valueOf(expenseDateTime));
+        ledgerPt.executeUpdate();
 
         con.commit();
     } catch (Exception e) {
@@ -480,6 +549,7 @@ public void addExpenseEntry(int expenseType, String content, String description,
         System.err.println("Error inserting expense entry: " + e.getMessage());
         throw e;
     } finally {
+        if (ledgerPt != null) try { ledgerPt.close(); } catch (SQLException e) { }
         if (pt != null) try { pt.close(); } catch (SQLException e) { }
         if (con != null) try { con.close(); } catch (Exception e) { }
     }

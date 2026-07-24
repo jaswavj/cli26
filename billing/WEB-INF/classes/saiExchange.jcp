@@ -2,7 +2,7 @@
 
 <project>
 	<settings>
-		<label>saiExchange</label>
+		<label>saiexchange</label>
 		<root_path>\</root_path>
 		<output_path>\</output_path>
 		<source_path>\</source_path>
@@ -70,6 +70,10 @@
 			</fileitem>
 			<fileitem>
 				<path>currency\currencyBean.java</path>
+				<folder>currency</folder>
+			</fileitem>
+			<fileitem>
+				<path>currency\exchangeBean.java</path>
 				<folder>currency</folder>
 			</fileitem>
 			<fileitem>

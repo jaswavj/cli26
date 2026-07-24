@@ -2,16 +2,16 @@
 
 <workspace>
 	<settings>
-		<label>saiExchange</label>
+		<label>saiexchange</label>
 	</settings>
 	<users>
 		<user>
-			<path>saiExchange.jcu</path>
+			<path>saiexchange.jcu</path>
 		</user>
 	</users>
 	<projects>
 		<project>
-			<path>saiExchange.jcp</path>
+			<path>saiexchange.jcp</path>
 		</project>
 	</projects>
 </workspace>

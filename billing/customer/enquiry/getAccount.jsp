@@ -47,6 +47,7 @@
             entry.put("finalAdvance", advFinal != null ? advFinal.toPlainString() : "0");
             entry.put("due", dueBefore != null ? dueBefore.toPlainString() : "0");
             entry.put("finalDue", dueFinal != null ? dueFinal.toPlainString() : "0");
+            entry.put("paymentMethod", row.size() > 8 && row.elementAt(8) != null ? row.elementAt(8).toString() : "-");
             entries.put(entry);
         }
 

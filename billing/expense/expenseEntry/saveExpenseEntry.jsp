@@ -15,15 +15,17 @@ String description = request.getParameter("description");
 String amountParam = request.getParameter("amount");
 String expenseDate = request.getParameter("expenseDate");
 String expenseTime = request.getParameter("expenseTime");
+String paymentIdParam = request.getParameter("paymentId");
 
 try {
     int expenseType = Integer.parseInt(expenseTypeParam);
+    int paymentId = Integer.parseInt(paymentIdParam);
     double amount = Double.parseDouble(amountParam);
     
     // Combine date and time
     String expenseDateTime = expenseDate + " " + expenseTime + ":00";
     
-    prod.addExpenseEntry(expenseType, content, description, amount, expenseDateTime, userId);
+    prod.addExpenseEntry(expenseType, content, description, amount, expenseDateTime, userId, paymentId);
     
     response.sendRedirect(request.getContextPath() + "/expense/expenseEntry/page.jsp?msg=Expense+entry+added+successfully!&type=success");
 } catch (Exception e) {

@@ -5,9 +5,10 @@
 int customerId = Integer.parseInt(request.getParameter("customerId"));
 BigDecimal amount = new BigDecimal(request.getParameter("amount").trim());
 String notes = request.getParameter("notes");
+int paymentId = Integer.parseInt(request.getParameter("paymentId"));
 
 try {
-    customer.addDue(customerId, amount, notes);
+    customer.addDue(customerId, amount, notes, paymentId);
     response.sendRedirect(request.getContextPath() + "/customer/enquiry/page.jsp?customerId=" + customerId
         + "&msg=Due+added+successfully&type=success");
 } catch (Exception e) {

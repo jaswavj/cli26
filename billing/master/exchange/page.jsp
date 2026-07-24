@@ -10,6 +10,8 @@ if (userId == null) {
 }
 
 Vector allCurrencies = currency.getCurrencyList();
+boolean hasBaseCurrency = currency.hasBaseCurrency();
+int baseCurrencyId = currency.getBaseCurrencyId();
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -33,6 +35,15 @@ Vector allCurrencies = currency.getCurrencyList();
             font-size: 0.9rem;
             margin-bottom: 8px;
             color: var(--bill-navy, #1e3a5f);
+        }
+        .limit-direction {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #64748b;
+            margin: 10px 0 6px;
+        }
+        .limit-direction:first-of-type {
+            margin-top: 0;
         }
     </style>
 </head>
@@ -74,11 +85,23 @@ String type = request.getParameter("type");
                             <label class="form-label fw-semibold">Currency Name</label>
                             <input type="text" name="currencyName" class="form-control fg-inp" placeholder="e.g. Indian Rupee" maxlength="100" required>
                         </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" name="isBase" id="addIsBase" value="1"
+                                    <%= hasBaseCurrency ? "disabled" : "" %>>
+                                <label class="form-check-label fw-semibold" for="addIsBase">Base Currency</label>
+                            </div>
+                            <% if (hasBaseCurrency) { %>
+                            <small class="text-muted d-block mt-1">A base currency is already set. Only one base currency is allowed.</small>
+                            <% } else { %>
+                            <small class="text-muted d-block mt-1">Mark this as the base currency for exchange transactions.</small>
+                            <% } %>
+                        </div>
 
                         <% if (allCurrencies != null && allCurrencies.size() > 0) { %>
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Exchange Limits vs Existing Currencies</label>
-                            <small class="text-muted d-block mb-2">Enter min and max values of the new currency against each currency already in the table.</small>
+                            <small class="text-muted d-block mb-2">Enter min and max values for both directions against each currency already in the table.</small>
                             <%
                             for (int i = 0; i < allCurrencies.size(); i++) {
                                 Vector existing = (Vector) allCurrencies.get(i);
@@ -89,6 +112,8 @@ String type = request.getParameter("type");
                             <div class="limit-block">
                                 <div class="limit-block-title"><%= refCode %> — <%= refName %></div>
                                 <input type="hidden" name="refCurrencyId" value="<%= refId %>">
+
+                                <div class="limit-direction new-to-ref-label" data-ref-code="<%= refCode %>">New Currency &rarr; <%= refCode %></div>
                                 <div class="row g-2">
                                     <div class="col-6">
                                         <label class="form-label small mb-1">Min Value</label>
@@ -97,6 +122,18 @@ String type = request.getParameter("type");
                                     <div class="col-6">
                                         <label class="form-label small mb-1">Max Value</label>
                                         <input type="number" step="0.0001" min="0" name="refMax" class="form-control fg-inp ref-limit-input" placeholder="0.0000" required>
+                                    </div>
+                                </div>
+
+                                <div class="limit-direction ref-to-new-label" data-ref-code="<%= refCode %>"><%= refCode %> &rarr; New Currency</div>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label small mb-1">Min Value</label>
+                                        <input type="number" step="0.0001" min="0" name="revMin" class="form-control fg-inp ref-limit-input" placeholder="0.0000" required>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small mb-1">Max Value</label>
+                                        <input type="number" step="0.0001" min="0" name="revMax" class="form-control fg-inp ref-limit-input" placeholder="0.0000" required>
                                     </div>
                                 </div>
                             </div>
@@ -127,6 +164,7 @@ String type = request.getParameter("type");
                                     <th>#</th>
                                     <th>Code</th>
                                     <th>Name</th>
+                                    <th>Base</th>
                                     <th>Exchange Limits</th>
                                     <th>Status</th>
                                     <th class="text-center">Actions</th>
@@ -142,6 +180,7 @@ String type = request.getParameter("type");
                                             String code = row.elementAt(1).toString();
                                             String name = row.elementAt(2).toString();
                                             int isActive = Integer.parseInt(row.elementAt(3).toString());
+                                            int isBase = Integer.parseInt(row.elementAt(4).toString());
                                             String limitsSummary = currency.getCurrencyLimitsSummary(id);
 
                                             StringBuilder limitsJson = new StringBuilder("[");
@@ -157,11 +196,32 @@ String type = request.getParameter("type");
                                                     .append("\"}");
                                             }
                                             limitsJson.append("]");
+
+                                            StringBuilder reverseLimitsJson = new StringBuilder("[");
+                                            Vector reverseLimits = currency.getReverseCurrencyLimits(id);
+                                            for (int j = 0; j < reverseLimits.size(); j++) {
+                                                Vector limitRow = (Vector) reverseLimits.get(j);
+                                                if (j > 0) reverseLimitsJson.append(",");
+                                                reverseLimitsJson.append("{")
+                                                    .append("\"currencyId\":").append(limitRow.elementAt(0))
+                                                    .append(",\"currencyCode\":\"").append(limitRow.elementAt(1).toString().replace("\"", "\\\""))
+                                                    .append("\",\"min\":\"").append(((BigDecimal) limitRow.elementAt(3)).toPlainString())
+                                                    .append("\",\"max\":\"").append(((BigDecimal) limitRow.elementAt(4)).toPlainString())
+                                                    .append("\"}");
+                                            }
+                                            reverseLimitsJson.append("]");
                                 %>
                                 <tr>
                                     <td><%= i + 1 %></td>
                                     <td class="fw-semibold"><%= code %></td>
                                     <td><%= name %></td>
+                                    <td>
+                                        <% if (isBase == 1) { %>
+                                            <span class="badge bg-primary"><i class="fa-solid fa-star me-1"></i>Base</span>
+                                        <% } else { %>
+                                            <span class="text-muted">—</span>
+                                        <% } %>
+                                    </td>
                                     <td><%= limitsSummary %></td>
                                     <td>
                                         <% if (isActive == 1) { %>
@@ -172,7 +232,7 @@ String type = request.getParameter("type");
                                     </td>
                                     <td class="text-center">
                                         <button type="button" class="btn btn-sm bb bb-outline me-1"
-                                            onclick='openEditModal(<%= id %>, <%= limitsJson.toString() %>)'>
+                                            onclick='openEditModal(<%= id %>, <%= limitsJson.toString() %>, <%= reverseLimitsJson.toString() %>)'>
                                             <i class="fa-solid fa-pen-to-square me-1"></i>Edit
                                         </button>
                                         <% if (isActive == 1) { %>
@@ -195,7 +255,7 @@ String type = request.getParameter("type");
                                     } else {
                                 %>
                                 <tr>
-                                    <td colspan="6" class="text-center py-4 text-muted">
+                                    <td colspan="7" class="text-center py-4 text-muted">
                                         <i class="fa-solid fa-inbox fa-2x mb-2 d-block opacity-50"></i>
                                         No currencies found. Add your first currency on the left.
                                     </td>
@@ -203,7 +263,7 @@ String type = request.getParameter("type");
                                 <%
                                     }
                                 } catch (Exception e) {
-                                    out.println("<tr><td colspan='6' class='text-center text-danger'>Error loading currencies: " + e.getMessage() + "</td></tr>");
+                                    out.println("<tr><td colspan='7' class='text-center text-danger'>Error loading currencies: " + e.getMessage() + "</td></tr>");
                                     e.printStackTrace();
                                 }
                                 %>
@@ -238,6 +298,14 @@ String type = request.getParameter("type");
                         </div>
                     </div>
 
+                    <div class="mb-3 mt-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="isBase" id="editIsBase" value="1">
+                            <label class="form-check-label fw-semibold" for="editIsBase">Base Currency</label>
+                        </div>
+                        <small class="text-muted d-block mt-1" id="editBaseHint"></small>
+                    </div>
+
                     <div id="editLimitsContainer" class="mt-3"></div>
 
                     <div class="d-flex gap-2 justify-content-end mt-3">
@@ -264,14 +332,18 @@ String type = request.getParameter("type");
                 out.print("{");
                 out.print("\"id\":" + row.elementAt(0) + ",");
                 out.print("\"code\":\"" + row.elementAt(1).toString().replace("\"", "\\\"") + "\",");
-                out.print("\"name\":\"" + row.elementAt(2).toString().replace("\"", "\\\"") + "\"");
+                out.print("\"name\":\"" + row.elementAt(2).toString().replace("\"", "\\\"") + "\",");
+                out.print("\"isBase\":" + row.elementAt(4));
                 out.print("}");
             }
         }
         %>
     ];
 
-    function openEditModal(id, savedLimits) {
+    const hasBaseCurrency = <%= hasBaseCurrency ? "true" : "false" %>;
+    const baseCurrencyId = <%= baseCurrencyId %>;
+
+    function openEditModal(id, savedLimits, savedReverseLimits) {
         const currency = allCurrenciesData.find(function(item) { return item.id === id; });
         if (!currency) return;
 
@@ -279,9 +351,30 @@ String type = request.getParameter("type");
         document.getElementById('editCurrencyCode').value = currency.code;
         document.getElementById('editCurrencyName').value = currency.name;
 
+        const editIsBase = document.getElementById('editIsBase');
+        const editBaseHint = document.getElementById('editBaseHint');
+        const isThisBase = currency.isBase === 1;
+        const canSetBase = isThisBase || !hasBaseCurrency;
+
+        editIsBase.checked = isThisBase;
+        editIsBase.disabled = !canSetBase;
+
+        if (isThisBase) {
+            editBaseHint.textContent = 'This is the current base currency. Uncheck to remove base status.';
+        } else if (hasBaseCurrency) {
+            editBaseHint.textContent = 'Another currency is already set as base. Only one base currency is allowed.';
+        } else {
+            editBaseHint.textContent = 'Mark this as the base currency for exchange transactions.';
+        }
+
         const limitsMap = {};
         (savedLimits || []).forEach(function(item) {
             limitsMap[item.refId] = item;
+        });
+
+        const reverseLimitsMap = {};
+        (savedReverseLimits || []).forEach(function(item) {
+            reverseLimitsMap[item.currencyId] = item;
         });
 
         const container = document.getElementById('editLimitsContainer');
@@ -293,13 +386,16 @@ String type = request.getParameter("type");
             container.innerHTML = '<div class="text-muted small">No other currencies available for exchange limits.</div>';
         } else {
             let html = '<label class="form-label fw-semibold">Exchange Limits vs Other Currencies</label>';
-            html += '<small class="text-muted d-block mb-2">Update min and max values against each existing currency.</small>';
+            html += '<small class="text-muted d-block mb-2">Update min and max values for both directions against each existing currency.</small>';
 
             otherCurrencies.forEach(function(ref) {
                 const saved = limitsMap[ref.id] || { min: '', max: '' };
+                const savedReverse = reverseLimitsMap[ref.id] || { min: '', max: '' };
                 html += '<div class="limit-block">';
                 html += '<div class="limit-block-title">' + ref.code + ' — ' + ref.name + '</div>';
                 html += '<input type="hidden" name="refCurrencyId" value="' + ref.id + '">';
+
+                html += '<div class="limit-direction">' + currency.code + ' &rarr; ' + ref.code + '</div>';
                 html += '<div class="row g-2">';
                 html += '<div class="col-6">';
                 html += '<label class="form-label small mb-1">Min Value</label>';
@@ -310,6 +406,19 @@ String type = request.getParameter("type");
                 html += '<input type="number" step="0.0001" min="0" name="refMax" class="form-control fg-inp" value="' + saved.max + '" required>';
                 html += '</div>';
                 html += '</div>';
+
+                html += '<div class="limit-direction">' + ref.code + ' &rarr; ' + currency.code + '</div>';
+                html += '<div class="row g-2">';
+                html += '<div class="col-6">';
+                html += '<label class="form-label small mb-1">Min Value</label>';
+                html += '<input type="number" step="0.0001" min="0" name="revMin" class="form-control fg-inp" value="' + savedReverse.min + '" required>';
+                html += '</div>';
+                html += '<div class="col-6">';
+                html += '<label class="form-label small mb-1">Max Value</label>';
+                html += '<input type="number" step="0.0001" min="0" name="revMax" class="form-control fg-inp" value="' + savedReverse.max + '" required>';
+                html += '</div>';
+                html += '</div>';
+
                 html += '</div>';
             });
 
@@ -318,6 +427,19 @@ String type = request.getParameter("type");
 
         var modal = new bootstrap.Modal(document.getElementById('editModal'));
         modal.show();
+    }
+
+    var addCurrencyCodeInput = document.querySelector('#addCurrencyForm input[name="currencyCode"]');
+    if (addCurrencyCodeInput) {
+        addCurrencyCodeInput.addEventListener('input', function() {
+            const code = this.value.trim().toUpperCase() || 'New Currency';
+            document.querySelectorAll('.new-to-ref-label').forEach(function(el) {
+                el.innerHTML = code + ' &rarr; ' + el.getAttribute('data-ref-code');
+            });
+            document.querySelectorAll('.ref-to-new-label').forEach(function(el) {
+                el.innerHTML = el.getAttribute('data-ref-code') + ' &rarr; ' + code;
+            });
+        });
     }
 </script>
 </body>

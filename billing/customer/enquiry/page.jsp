@@ -1,4 +1,6 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page language="java" import="java.util.*"%>
+<jsp:useBean id="customer" class="currency.currencyBean" />
 <%
 Integer userId = (Integer) session.getAttribute("userId");
 if (userId == null) {
@@ -6,6 +8,7 @@ if (userId == null) {
     return;
 }
 
+Vector paymentMethods = customer.getPaymentMethods();
 String selectedCustomerId = request.getParameter("customerId");
 String msg = request.getParameter("msg");
 String type = request.getParameter("type");
@@ -176,6 +179,7 @@ if (msg != null) {
                             <tr>
                                 <th>Date</th>
                                 <th>Type</th>
+                                <th>Payment</th>
                                 <th class="text-end">Amount</th>
                                 <th class="text-end">Final Adv</th>
                                 <th class="text-end">Final Due</th>
@@ -184,7 +188,7 @@ if (msg != null) {
                         </thead>
                         <tbody id="entriesBody">
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">No entries found</td>
+                                <td colspan="7" class="text-center py-4 text-muted">No entries found</td>
                             </tr>
                         </tbody>
                     </table>
@@ -231,6 +235,17 @@ if (msg != null) {
                         <input type="number" step="0.0001" min="0.0001" name="amount" class="form-control fg-inp" required>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label fw-semibold">Payment Method</label>
+                        <select name="paymentId" class="form-select fg-inp" required>
+                            <option value="">Select payment method</option>
+                            <% for (int i = 0; i < paymentMethods.size(); i++) {
+                                Vector pm = (Vector) paymentMethods.get(i);
+                            %>
+                            <option value="<%= pm.elementAt(0) %>"><%= pm.elementAt(1) %></option>
+                            <% } %>
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label fw-semibold">Notes</label>
                         <textarea name="notes" class="form-control fg-inp" rows="2" placeholder="Optional"></textarea>
                     </div>
@@ -257,6 +272,17 @@ if (msg != null) {
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Amount</label>
                         <input type="number" step="0.0001" min="0.0001" name="amount" class="form-control fg-inp" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Payment Method</label>
+                        <select name="paymentId" class="form-select fg-inp" required>
+                            <option value="">Select payment method</option>
+                            <% for (int i = 0; i < paymentMethods.size(); i++) {
+                                Vector pm = (Vector) paymentMethods.get(i);
+                            %>
+                            <option value="<%= pm.elementAt(0) %>"><%= pm.elementAt(1) %></option>
+                            <% } %>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Notes</label>
@@ -289,6 +315,17 @@ if (msg != null) {
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Collection Amount</label>
                         <input type="number" step="0.0001" min="0.0001" name="amount" id="collectionAmount" class="form-control fg-inp" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Payment Method</label>
+                        <select name="paymentId" class="form-select fg-inp" required>
+                            <option value="">Select payment method</option>
+                            <% for (int i = 0; i < paymentMethods.size(); i++) {
+                                Vector pm = (Vector) paymentMethods.get(i);
+                            %>
+                            <option value="<%= pm.elementAt(0) %>"><%= pm.elementAt(1) %></option>
+                            <% } %>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Notes</label>
@@ -334,7 +371,7 @@ if (msg != null) {
         tbody.innerHTML = '';
 
         if (!entries || entries.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No entries found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No entries found</td></tr>';
             return;
         }
 
@@ -348,6 +385,7 @@ if (msg != null) {
             tr.innerHTML =
                 '<td>' + (entry.date || '-') + '</td>' +
                 '<td><span class="badge ' + badgeClass + '">' + entry.type + '</span></td>' +
+                '<td>' + (entry.paymentMethod || '-') + '</td>' +
                 '<td class="text-end fw-semibold">' + entry.amount + '</td>' +
                 '<td class="text-end">' + (entry.finalAdvance || '0') + '</td>' +
                 '<td class="text-end">' + (entry.finalDue || '0') + '</td>' +

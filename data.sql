@@ -16,44 +16,44 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/`saiexchange` /*!40100 DEFAULT CHARACTER
 
 USE `saiexchange`;
 
-/*Table structure for table `attender` */
-
-DROP TABLE IF EXISTS `attender`;
-
-CREATE TABLE `attender` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `code` varchar(255) DEFAULT NULL,
-  `is_active` int DEFAULT '1',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `attender` */
-
 /*Table structure for table `ce_bill_ledger` */
 
 DROP TABLE IF EXISTS `ce_bill_ledger`;
 
 CREATE TABLE `ce_bill_ledger` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `customer_id` int NOT NULL,
+  `customer_id` int DEFAULT NULL,
   `bill_type` int NOT NULL,
   `bill_id` int NOT NULL,
   `advance` decimal(18,4) NOT NULL DEFAULT '0.0000',
   `final_advance` decimal(18,4) NOT NULL DEFAULT '0.0000',
   `due` decimal(18,4) NOT NULL DEFAULT '0.0000',
   `final_due` decimal(18,4) NOT NULL DEFAULT '0.0000',
+  `is_cash` decimal(18,4) NOT NULL DEFAULT '0.0000',
+  `is_bank` decimal(18,4) NOT NULL DEFAULT '0.0000',
+  `payment_id` int DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  PRIMARY KEY (`id`),
+  KEY `idx_ce_bill_ledger_payment` (`payment_id`),
+  KEY `fk_ce_bill_ledger_customer` (`customer_id`),
+  CONSTRAINT `fk_ce_bill_ledger_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_bill_ledger` */
 
-insert  into `ce_bill_ledger`(`id`,`customer_id`,`bill_type`,`bill_id`,`advance`,`final_advance`,`due`,`final_due`,`created_at`) values 
-(1,1,1,1,0.0000,100.0000,0.0000,0.0000,'2026-07-23 18:01:07'),
-(2,1,2,1,100.0000,100.0000,0.0000,500.0000,'2026-07-23 18:01:13'),
-(3,1,3,1,100.0000,100.0000,500.0000,300.0000,'2026-07-23 18:01:19'),
-(4,1,1,2,100.0000,200.0000,300.0000,300.0000,'2026-07-23 18:06:41');
+insert  into `ce_bill_ledger`(`id`,`customer_id`,`bill_type`,`bill_id`,`advance`,`final_advance`,`due`,`final_due`,`is_cash`,`is_bank`,`payment_id`,`created_at`) values 
+(1,1,1,1,0.0000,100.0000,0.0000,0.0000,100.0000,0.0000,1,'2026-07-24 12:37:25'),
+(2,1,1,2,100.0000,150.0000,0.0000,0.0000,0.0000,50.0000,2,'2026-07-24 12:37:34'),
+(3,1,2,1,150.0000,150.0000,0.0000,500.0000,500.0000,0.0000,1,'2026-07-24 12:37:46'),
+(4,1,2,2,150.0000,150.0000,500.0000,1000.0000,0.0000,500.0000,2,'2026-07-24 12:37:55'),
+(5,1,3,1,150.0000,150.0000,1000.0000,950.0000,50.0000,0.0000,1,'2026-07-24 12:38:08'),
+(6,1,3,2,150.0000,150.0000,950.0000,900.0000,0.0000,50.0000,2,'2026-07-24 12:38:15'),
+(7,1,4,1,150.0000,150.0000,900.0000,900.0000,1050.0000,0.0000,1,'2026-07-24 15:13:39'),
+(8,3,4,2,0.0000,0.0000,0.0000,0.0000,220.0000,0.0000,1,'2026-07-24 15:44:42'),
+(9,1,1,3,150.0000,170.0000,900.0000,900.0000,20.0000,0.0000,1,'2026-07-24 15:48:06'),
+(10,NULL,5,2,0.0000,0.0000,0.0000,0.0000,100.0000,0.0000,1,'2026-07-24 16:00:00'),
+(11,NULL,5,3,0.0000,0.0000,0.0000,0.0000,0.0000,140.0000,2,'2026-07-24 16:01:00'),
+(12,NULL,5,4,0.0000,0.0000,0.0000,0.0000,0.0000,130.0000,7,'2026-07-24 16:02:00');
 
 /*Table structure for table `ce_bill_type` */
 
@@ -63,7 +63,7 @@ CREATE TABLE `ce_bill_type` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_bill_type` */
 
@@ -71,7 +71,8 @@ insert  into `ce_bill_type`(`id`,`name`) values
 (1,'advance'),
 (2,'due'),
 (3,'due collection'),
-(4,'exchange bill');
+(4,'exchange bill'),
+(5,'Expense');
 
 /*Table structure for table `ce_currency` */
 
@@ -82,18 +83,58 @@ CREATE TABLE `ce_currency` (
   `currency_code` varchar(10) NOT NULL,
   `currency_name` varchar(100) NOT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `is_base` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_ce_currency_code` (`currency_code`),
-  KEY `idx_ce_currency_active` (`is_active`)
+  KEY `idx_ce_currency_active` (`is_active`),
+  KEY `idx_ce_currency_base` (`is_base`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency` */
 
-insert  into `ce_currency`(`id`,`currency_code`,`currency_name`,`is_active`,`created_at`,`updated_at`) values 
-(1,'USD','US DOLLOR',1,'2026-07-23 16:51:31','2026-07-23 16:51:31'),
-(2,'INR','Indian Rupee',1,'2026-07-23 16:57:31','2026-07-23 16:57:31');
+insert  into `ce_currency`(`id`,`currency_code`,`currency_name`,`is_active`,`is_base`,`created_at`,`updated_at`) values 
+(1,'USD','US DOLLOR',1,0,'2026-07-23 16:51:31','2026-07-23 16:51:31'),
+(2,'INR','Indian Rupee',1,1,'2026-07-23 16:57:31','2026-07-24 15:06:37');
+
+/*Table structure for table `ce_currency_exchange` */
+
+DROP TABLE IF EXISTS `ce_currency_exchange`;
+
+CREATE TABLE `ce_currency_exchange` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `customer_id` int NOT NULL,
+  `exchange_type` tinyint NOT NULL COMMENT '1=Purchase, 2=Sale',
+  `exchange_date` date NOT NULL,
+  `currency_id` int NOT NULL,
+  `amount` decimal(18,4) NOT NULL,
+  `counter_currency_id` int NOT NULL,
+  `counter_amount` decimal(18,4) NOT NULL,
+  `payment_id` int NOT NULL,
+  `notes` text,
+  `uid` int NOT NULL,
+  `is_cancelled` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ce_currency_exchange_customer` (`customer_id`),
+  KEY `idx_ce_currency_exchange_currency` (`currency_id`),
+  KEY `idx_ce_currency_exchange_date` (`exchange_date`),
+  KEY `idx_ce_currency_exchange_type` (`exchange_type`),
+  KEY `idx_ce_currency_exchange_payment` (`payment_id`),
+  KEY `idx_ce_currency_exchange_cancelled` (`is_cancelled`),
+  KEY `idx_ce_currency_exchange_counter` (`counter_currency_id`),
+  CONSTRAINT `fk_ce_currency_exchange_counter` FOREIGN KEY (`counter_currency_id`) REFERENCES `ce_currency` (`id`),
+  CONSTRAINT `fk_ce_currency_exchange_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`),
+  CONSTRAINT `fk_ce_currency_exchange_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`),
+  CONSTRAINT `fk_ce_currency_exchange_payment` FOREIGN KEY (`payment_id`) REFERENCES `ce_payment_method` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `ce_currency_exchange` */
+
+insert  into `ce_currency_exchange`(`id`,`customer_id`,`exchange_type`,`exchange_date`,`currency_id`,`amount`,`counter_currency_id`,`counter_amount`,`payment_id`,`notes`,`uid`,`is_cancelled`,`created_at`) values 
+(1,1,1,'2026-07-24',1,10.0000,2,1050.0000,1,NULL,1,0,'2026-07-24 15:13:39'),
+(2,3,2,'2026-07-24',1,2.0000,2,220.0000,1,NULL,1,0,'2026-07-24 15:44:42');
 
 /*Table structure for table `ce_currency_limit` */
 
@@ -112,13 +153,93 @@ CREATE TABLE `ce_currency_limit` (
   KEY `idx_ce_currency_limit_ref` (`ref_currency_id`),
   CONSTRAINT `fk_ce_limit_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_ce_limit_ref_currency` FOREIGN KEY (`ref_currency_id`) REFERENCES `ce_currency` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency_limit` */
 
 insert  into `ce_currency_limit`(`id`,`currency_id`,`ref_currency_id`,`min_value`,`max_value`,`created_at`,`updated_at`) values 
-(1,2,1,101.0000,105.0000,'2026-07-23 16:57:31','2026-07-23 16:57:31'),
-(2,1,2,10.0000,20.0000,'2026-07-23 16:58:21','2026-07-23 16:58:21');
+(5,2,1,0.0100,0.0200,'2026-07-24 15:06:37','2026-07-24 15:06:37'),
+(6,1,2,100.0000,110.0000,'2026-07-24 15:06:37','2026-07-24 15:06:37');
+
+/*Table structure for table `ce_currency_stock` */
+
+DROP TABLE IF EXISTS `ce_currency_stock`;
+
+CREATE TABLE `ce_currency_stock` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `currency_id` int NOT NULL,
+  `quantity` decimal(18,4) NOT NULL DEFAULT '0.0000',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_ce_currency_stock_currency` (`currency_id`),
+  CONSTRAINT `fk_ce_currency_stock_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `ce_currency_stock` */
+
+insert  into `ce_currency_stock`(`id`,`currency_id`,`quantity`,`updated_at`) values 
+(1,2,19180.0000,'2026-07-24 15:44:42'),
+(3,1,18.0000,'2026-07-24 15:44:42');
+
+/*Table structure for table `ce_currency_stock_adjustment` */
+
+DROP TABLE IF EXISTS `ce_currency_stock_adjustment`;
+
+CREATE TABLE `ce_currency_stock_adjustment` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `currency_id` int NOT NULL,
+  `adjustment_type` tinyint NOT NULL COMMENT '1=Add Stock, 2=Remove Stock',
+  `quantity` decimal(18,4) NOT NULL,
+  `reason` text NOT NULL,
+  `uid` int NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ce_stock_adj_currency` (`currency_id`),
+  KEY `idx_ce_stock_adj_type` (`adjustment_type`),
+  CONSTRAINT `fk_ce_stock_adj_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `ce_currency_stock_adjustment` */
+
+insert  into `ce_currency_stock_adjustment`(`id`,`currency_id`,`adjustment_type`,`quantity`,`reason`,`uid`,`created_at`) values 
+(1,2,1,10.0000,'s',1,'2026-07-24 14:41:52'),
+(2,2,1,20000.0000,'a',1,'2026-07-24 14:42:05'),
+(3,1,1,10.0000,'s',1,'2026-07-24 14:42:13');
+
+/*Table structure for table `ce_currency_stock_transaction` */
+
+DROP TABLE IF EXISTS `ce_currency_stock_transaction`;
+
+CREATE TABLE `ce_currency_stock_transaction` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `exchange_id` int DEFAULT NULL,
+  `adjustment_id` int DEFAULT NULL,
+  `currency_id` int NOT NULL,
+  `txn_type` tinyint NOT NULL COMMENT '1=Purchase In, 2=Sale Out',
+  `quantity` decimal(18,4) NOT NULL,
+  `before_qty` decimal(18,4) NOT NULL DEFAULT '0.0000',
+  `after_qty` decimal(18,4) NOT NULL DEFAULT '0.0000',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ce_stock_txn_exchange` (`exchange_id`),
+  KEY `idx_ce_stock_txn_currency` (`currency_id`),
+  KEY `idx_ce_stock_txn_type` (`txn_type`),
+  KEY `idx_ce_stock_txn_adjustment` (`adjustment_id`),
+  CONSTRAINT `fk_ce_currency_stock_txn_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`),
+  CONSTRAINT `fk_ce_stock_txn_adjustment` FOREIGN KEY (`adjustment_id`) REFERENCES `ce_currency_stock_adjustment` (`id`),
+  CONSTRAINT `fk_ce_stock_txn_exchange` FOREIGN KEY (`exchange_id`) REFERENCES `ce_currency_exchange` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `ce_currency_stock_transaction` */
+
+insert  into `ce_currency_stock_transaction`(`id`,`exchange_id`,`adjustment_id`,`currency_id`,`txn_type`,`quantity`,`before_qty`,`after_qty`,`created_at`) values 
+(1,NULL,1,2,3,10.0000,0.0000,10.0000,'2026-07-24 14:41:52'),
+(2,NULL,2,2,3,20000.0000,10.0000,20010.0000,'2026-07-24 14:42:05'),
+(3,NULL,3,1,3,10.0000,0.0000,10.0000,'2026-07-24 14:42:13'),
+(4,1,NULL,1,1,10.0000,10.0000,20.0000,'2026-07-24 15:13:39'),
+(5,1,NULL,2,2,1050.0000,20010.0000,18960.0000,'2026-07-24 15:13:39'),
+(6,2,NULL,1,2,2.0000,20.0000,18.0000,'2026-07-24 15:44:42'),
+(7,2,NULL,2,1,220.0000,18960.0000,19180.0000,'2026-07-24 15:44:42');
 
 /*Table structure for table `ce_cus_advance` */
 
@@ -129,17 +250,20 @@ CREATE TABLE `ce_cus_advance` (
   `customer_id` int NOT NULL,
   `amount` decimal(18,4) NOT NULL,
   `notes` text,
+  `payment_id` int DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_ce_cus_advance_customer` (`customer_id`),
+  KEY `idx_ce_cus_advance_payment` (`payment_id`),
   CONSTRAINT `fk_ce_cus_advance_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_cus_advance` */
 
-insert  into `ce_cus_advance`(`id`,`customer_id`,`amount`,`notes`,`created_at`) values 
-(1,1,100.0000,NULL,'2026-07-23 18:01:07'),
-(2,1,100.0000,NULL,'2026-07-23 18:06:41');
+insert  into `ce_cus_advance`(`id`,`customer_id`,`amount`,`notes`,`payment_id`,`created_at`) values 
+(1,1,100.0000,NULL,1,'2026-07-24 12:37:25'),
+(2,1,50.0000,NULL,2,'2026-07-24 12:37:34'),
+(3,1,20.0000,NULL,1,'2026-07-24 15:48:06');
 
 /*Table structure for table `ce_cus_due` */
 
@@ -150,16 +274,19 @@ CREATE TABLE `ce_cus_due` (
   `customer_id` int NOT NULL,
   `amount` decimal(18,4) NOT NULL,
   `notes` text,
+  `payment_id` int DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_ce_cus_due_customer` (`customer_id`),
+  KEY `idx_ce_cus_due_payment` (`payment_id`),
   CONSTRAINT `fk_ce_cus_due_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_cus_due` */
 
-insert  into `ce_cus_due`(`id`,`customer_id`,`amount`,`notes`,`created_at`) values 
-(1,1,500.0000,NULL,'2026-07-23 18:01:13');
+insert  into `ce_cus_due`(`id`,`customer_id`,`amount`,`notes`,`payment_id`,`created_at`) values 
+(1,1,500.0000,NULL,1,'2026-07-24 12:37:46'),
+(2,1,500.0000,NULL,2,'2026-07-24 12:37:55');
 
 /*Table structure for table `ce_cus_due_collection` */
 
@@ -170,16 +297,19 @@ CREATE TABLE `ce_cus_due_collection` (
   `customer_id` int NOT NULL,
   `amount` decimal(18,4) NOT NULL,
   `notes` text,
+  `payment_id` int DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_ce_cus_due_collection_customer` (`customer_id`),
+  KEY `idx_ce_cus_due_collection_payment` (`payment_id`),
   CONSTRAINT `fk_ce_cus_due_collection_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_cus_due_collection` */
 
-insert  into `ce_cus_due_collection`(`id`,`customer_id`,`amount`,`notes`,`created_at`) values 
-(1,1,200.0000,NULL,'2026-07-23 18:01:19');
+insert  into `ce_cus_due_collection`(`id`,`customer_id`,`amount`,`notes`,`payment_id`,`created_at`) values 
+(1,1,50.0000,NULL,1,'2026-07-24 12:38:08'),
+(2,1,50.0000,NULL,2,'2026-07-24 12:38:15');
 
 /*Table structure for table `ce_customer` */
 
@@ -198,13 +328,15 @@ CREATE TABLE `ce_customer` (
   KEY `idx_ce_customer_name` (`name`),
   KEY `idx_ce_customer_phone` (`phone_number`),
   KEY `idx_ce_customer_active` (`is_active`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_customer` */
 
 insert  into `ce_customer`(`id`,`name`,`phone_number`,`address`,`notes`,`is_active`,`created_at`,`updated_at`) values 
 (1,'Jaswa','9597451419',NULL,NULL,1,'2026-07-23 17:22:46','2026-07-23 17:22:46'),
-(2,'Jeb','8667214152',NULL,NULL,1,'2026-07-23 17:22:53','2026-07-23 17:22:53');
+(2,'Jeb','8667214152',NULL,NULL,1,'2026-07-23 17:22:53','2026-07-23 17:22:53'),
+(3,'jebsi','9597451410',NULL,NULL,1,'2026-07-24 15:44:42','2026-07-24 15:44:42'),
+(4,'Expense Ledger',NULL,NULL,NULL,1,'2026-07-24 15:58:06','2026-07-24 15:58:06');
 
 /*Table structure for table `ce_customer_account` */
 
@@ -225,8 +357,32 @@ CREATE TABLE `ce_customer_account` (
 /*Data for the table `ce_customer_account` */
 
 insert  into `ce_customer_account`(`id`,`customer_id`,`advance`,`due`,`created_at`,`updated_at`) values 
-(1,1,200.0000,300.0000,'2026-07-23 17:22:46','2026-07-23 18:06:41'),
-(2,2,0.0000,0.0000,'2026-07-23 17:22:53','2026-07-23 17:22:53');
+(1,1,170.0000,900.0000,'2026-07-24 12:37:25','2026-07-24 15:48:06'),
+(2,3,0.0000,0.0000,'2026-07-24 15:44:42','2026-07-24 15:44:42');
+
+/*Table structure for table `ce_payment_method` */
+
+DROP TABLE IF EXISTS `ce_payment_method`;
+
+CREATE TABLE `ce_payment_method` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL,
+  `is_cash` tinyint(1) NOT NULL DEFAULT '0',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_ce_payment_method_name` (`name`)
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `ce_payment_method` */
+
+insert  into `ce_payment_method`(`id`,`name`,`is_cash`,`is_active`) values 
+(1,'Cash',1,1),
+(2,'UPI',0,1),
+(3,'Credit Card',0,1),
+(4,'Debit Card',0,1),
+(5,'Cheque',0,1),
+(6,'NEFT',0,1),
+(7,'IMPS',0,1);
 
 /*Table structure for table `company_details` */
 
@@ -249,139 +405,6 @@ CREATE TABLE `company_details` (
 insert  into `company_details`(`id`,`shop_name`,`address`,`gstin`,`print_type`,`printer_name`,`bank_details`,`barcode_printer`) values 
 (2,'JASXBILL','Address','ASDFFD223SDDDDF',2,'','Bank Details','AP4909');
 
-/*Table structure for table `configure_bank_details` */
-
-DROP TABLE IF EXISTS `configure_bank_details`;
-
-CREATE TABLE `configure_bank_details` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `is_blocked` tinyint unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=latin1;
-
-/*Data for the table `configure_bank_details` */
-
-insert  into `configure_bank_details`(`id`,`name`,`is_blocked`) values 
-(1,'SBI BANK',0),
-(2,'CANARA BANK',0),
-(3,'AXIS BANK',0),
-(4,'IOB BANK',0);
-
-/*Table structure for table `configure_payment_type` */
-
-DROP TABLE IF EXISTS `configure_payment_type`;
-
-CREATE TABLE `configure_payment_type` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `is_blocked` int unsigned NOT NULL DEFAULT '0',
-  `type_id` int unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=latin1;
-
-/*Data for the table `configure_payment_type` */
-
-insert  into `configure_payment_type`(`id`,`name`,`is_blocked`,`type_id`) values 
-(1,'Cash',0,1),
-(2,'BANK',0,2);
-
-/*Table structure for table `credit_days` */
-
-DROP TABLE IF EXISTS `credit_days`;
-
-CREATE TABLE `credit_days` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `credit_days` int NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `credit_days` */
-
-insert  into `credit_days`(`id`,`credit_days`) values 
-(1,10);
-
-/*Table structure for table `customer_account` */
-
-DROP TABLE IF EXISTS `customer_account`;
-
-CREATE TABLE `customer_account` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `customer_id` int NOT NULL,
-  `advance` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `balance` decimal(10,2) NOT NULL DEFAULT '0.00',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `customer_id` (`customer_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `customer_account` */
-
-/*Table structure for table `customers` */
-
-DROP TABLE IF EXISTS `customers`;
-
-CREATE TABLE `customers` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `phone_number` varchar(255) DEFAULT NULL,
-  `address` varchar(255) DEFAULT NULL,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  `is_eligible_for_commission` tinyint DEFAULT '1',
-  `is_active` int DEFAULT '1',
-  `gstin` varchar(255) DEFAULT NULL,
-  `is_gst` int DEFAULT '0',
-  `salesman` int DEFAULT NULL,
-  `area` int DEFAULT NULL,
-  `credit_limit` double(10,2) NOT NULL DEFAULT '0.00',
-  `local` int DEFAULT '1',
-  `exchange_point` double(10,3) DEFAULT '0.000',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `customers` */
-
-/*Table structure for table `customers_exchange_point` */
-
-DROP TABLE IF EXISTS `customers_exchange_point`;
-
-CREATE TABLE `customers_exchange_point` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `customer_id` int NOT NULL,
-  `bill_id` int NOT NULL,
-  `old_point` double(10,3) DEFAULT '0.000',
-  `exchange_point` double(10,3) DEFAULT '0.000',
-  `total_point` double(10,3) DEFAULT '0.000',
-  `uid` int DEFAULT NULL,
-  `date_time` datetime DEFAULT NULL,
-  `notes` text,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `customers_exchange_point` */
-
-/*Table structure for table `daybook_opening_balance` */
-
-DROP TABLE IF EXISTS `daybook_opening_balance`;
-
-CREATE TABLE `daybook_opening_balance` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `balance_date` date NOT NULL,
-  `amount` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `balance_type` varchar(10) NOT NULL DEFAULT 'cash' COMMENT 'cash = Cash Book opening, bank = Day Book bank opening',
-  `notes` varchar(255) DEFAULT NULL,
-  `uid` int DEFAULT NULL,
-  `entry_date` date NOT NULL,
-  `entry_time` time NOT NULL,
-  `is_active` tinyint(1) NOT NULL DEFAULT '1',
-  PRIMARY KEY (`id`),
-  KEY `idx_balance_date` (`balance_date`),
-  KEY `idx_active_date` (`is_active`,`balance_date`),
-  KEY `idx_balance_type` (`balance_type`,`is_active`,`balance_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `daybook_opening_balance` */
-
 /*Table structure for table `expense_entry` */
 
 DROP TABLE IF EXISTS `expense_entry`;
@@ -391,6 +414,7 @@ CREATE TABLE `expense_entry` (
   `exp_type` int NOT NULL,
   `content` varchar(255) NOT NULL,
   `amount` decimal(10,2) NOT NULL,
+  `payment_id` int DEFAULT NULL,
   `description` text,
   `exc_date_time` datetime DEFAULT NULL,
   `entry_date_time` datetime DEFAULT NULL,
@@ -398,9 +422,14 @@ CREATE TABLE `expense_entry` (
   `uid` int NOT NULL,
   PRIMARY KEY (`id`),
   KEY `type` (`exp_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `expense_entry` */
+
+insert  into `expense_entry`(`id`,`exp_type`,`content`,`amount`,`payment_id`,`description`,`exc_date_time`,`entry_date_time`,`is_active`,`uid`) values 
+(2,1,'ddd',100.00,1,'dd','2026-07-24 16:00:00','2026-07-24 16:01:41',1,1),
+(3,1,'ss',140.00,2,'s','2026-07-24 16:01:00','2026-07-24 16:02:07',1,1),
+(4,1,'dd',130.00,7,'dd','2026-07-24 16:02:00','2026-07-24 16:02:15',1,1);
 
 /*Table structure for table `expense_type` */
 
@@ -411,9 +440,12 @@ CREATE TABLE `expense_type` (
   `type` varchar(255) NOT NULL,
   `is_active` int DEFAULT '1',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `expense_type` */
+
+insert  into `expense_type`(`id`,`type`,`is_active`) values 
+(1,'TEA',1);
 
 /*Table structure for table `gstin` */
 
@@ -446,1112 +478,6 @@ CREATE TABLE `heading` (
 insert  into `heading`(`id`,`head1`,`head2`,`head3`,`active`) values 
 (1,'Category','Brand','Product',600);
 
-/*Table structure for table `order_tables` */
-
-DROP TABLE IF EXISTS `order_tables`;
-
-CREATE TABLE `order_tables` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `is_occupied` int NOT NULL DEFAULT '0',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `order_tables` */
-
-/*Table structure for table `pro_bill_exchange` */
-
-DROP TABLE IF EXISTS `pro_bill_exchange`;
-
-CREATE TABLE `pro_bill_exchange` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `bill_id` int NOT NULL,
-  `customer_id` int NOT NULL,
-  `old_prod_id` int NOT NULL,
-  `new_prod_id` int NOT NULL,
-  `uid` int NOT NULL,
-  `date_time` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `pro_bill_exchange` */
-
-/*Table structure for table `prod_batch` */
-
-DROP TABLE IF EXISTS `prod_batch`;
-
-CREATE TABLE `prod_batch` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `product_id` int NOT NULL,
-  `cost` double(10,3) DEFAULT '0.000',
-  `mrp` double(10,3) DEFAULT '0.000',
-  `commission` double(10,3) DEFAULT '0.000',
-  `stock` decimal(10,2) NOT NULL,
-  `disc_type` int DEFAULT '0' COMMENT '1=rs 2=%',
-  `discount` double(10,3) DEFAULT '0.000',
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT '00:00:00',
-  `added_stock` decimal(10,2) NOT NULL,
-  `uid` int NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `prod` (`product_id`),
-  KEY `disc` (`disc_type`),
-  KEY `uid` (`uid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_batch` */
-
-/*Table structure for table `prod_batch_updated` */
-
-DROP TABLE IF EXISTS `prod_batch_updated`;
-
-CREATE TABLE `prod_batch_updated` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `product_id` int NOT NULL,
-  `cost` double(10,3) NOT NULL DEFAULT '0.000',
-  `mrp` double(10,3) NOT NULL DEFAULT '0.000',
-  `stock` decimal(10,2) NOT NULL,
-  `disc_type` int DEFAULT '0' COMMENT '1=rs 2=%',
-  `discount` double(10,3) DEFAULT '0.000',
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT '00:00:00',
-  `added_stock` decimal(10,2) NOT NULL,
-  `uid` int NOT NULL DEFAULT '0',
-  `updatedDate` date DEFAULT NULL,
-  `updatedTime` time DEFAULT '00:00:00',
-  `updatedUid` int NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `prod` (`product_id`),
-  KEY `disc` (`disc_type`),
-  KEY `uid` (`uid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_batch_updated` */
-
-/*Table structure for table `prod_batch_zero_stock_bill` */
-
-DROP TABLE IF EXISTS `prod_batch_zero_stock_bill`;
-
-CREATE TABLE `prod_batch_zero_stock_bill` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `batch_id` varchar(255) NOT NULL,
-  `product_id` int NOT NULL,
-  `qty` decimal(10,2) NOT NULL,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT '00:00:00',
-  `uid` int NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `batch` (`batch_id`),
-  KEY `prod` (`product_id`),
-  KEY `uid` (`uid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_batch_zero_stock_bill` */
-
-/*Table structure for table `prod_bill` */
-
-DROP TABLE IF EXISTS `prod_bill`;
-
-CREATE TABLE `prod_bill` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `bill_display` varchar(255) NOT NULL,
-  `is_tax_bill` tinyint(1) DEFAULT '1',
-  `is_receipt` int DEFAULT '1',
-  `total` double(10,3) DEFAULT '0.000',
-  `prodDisc` double(10,3) DEFAULT '0.000',
-  `extraDisc` double(10,3) DEFAULT '0.000',
-  `payable` double(10,3) DEFAULT '0.000',
-  `paid` double(10,3) DEFAULT '0.000',
-  `balance` double(10,3) DEFAULT '0.000',
-  `currentBalance` double(10,3) DEFAULT '0.000',
-  `is_balance` int DEFAULT '0',
-  `paymentMode` int NOT NULL COMMENT 'prod_bill_payment_mode',
-  `paymentType` int DEFAULT '0' COMMENT 'prod_bill_payment_type',
-  `uid` int NOT NULL,
-  `date` date NOT NULL,
-  `time` time NOT NULL DEFAULT '00:00:00',
-  `is_cancelled` int DEFAULT '0',
-  `bill_type` int DEFAULT '1' COMMENT '1=prod bill',
-  `cusName` varchar(255) DEFAULT '""',
-  `cusPhn` varchar(255) DEFAULT '-',
-  `customerId` int DEFAULT NULL,
-  `price_category` int NOT NULL,
-  `lr_no` varchar(255) DEFAULT NULL,
-  `lr_date` date DEFAULT NULL,
-  `lr_name` varchar(255) DEFAULT NULL,
-  `attender_id` int DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `uid` (`uid`),
-  KEY `mode` (`paymentMode`),
-  KEY `type` (`paymentType`),
-  KEY `idx_is_tax_bill` (`is_tax_bill`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_bill` */
-
-/*Table structure for table `prod_bill_cancel` */
-
-DROP TABLE IF EXISTS `prod_bill_cancel`;
-
-CREATE TABLE `prod_bill_cancel` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `bill_id` int NOT NULL,
-  `reason` text,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  `uid` int DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `billId` (`bill_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_bill_cancel` */
-
-/*Table structure for table `prod_bill_datechange` */
-
-DROP TABLE IF EXISTS `prod_bill_datechange`;
-
-CREATE TABLE `prod_bill_datechange` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `billId` int NOT NULL,
-  `oldDate` date DEFAULT NULL,
-  `changeDate` date DEFAULT NULL,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  `uid` int NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `billId` (`billId`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_bill_datechange` */
-
-/*Table structure for table `prod_bill_details` */
-
-DROP TABLE IF EXISTS `prod_bill_details`;
-
-CREATE TABLE `prod_bill_details` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `bill_id` int NOT NULL,
-  `prod_id` int NOT NULL,
-  `qty` decimal(10,2) NOT NULL,
-  `price` double(10,3) DEFAULT '0.000',
-  `disc` double(10,3) DEFAULT '0.000',
-  `total` double(10,3) DEFAULT '0.000',
-  `cost` double(10,3) DEFAULT '0.000',
-  `commission` double(10,3) DEFAULT '0.000',
-  `gst` int NOT NULL DEFAULT '0',
-  `is_cancelled` int DEFAULT '0',
-  `cancel_date` datetime DEFAULT NULL,
-  `is_exchanged` int DEFAULT '0',
-  PRIMARY KEY (`id`),
-  KEY `bill` (`bill_id`),
-  KEY `prod` (`prod_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_bill_details` */
-
-/*Table structure for table `prod_bill_due` */
-
-DROP TABLE IF EXISTS `prod_bill_due`;
-
-CREATE TABLE `prod_bill_due` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `customer_id` int NOT NULL,
-  `amount` double(10,3) NOT NULL DEFAULT '0.000',
-  `cash_paid` double(10,3) NOT NULL DEFAULT '0.000',
-  `bank_paid` double(10,3) NOT NULL DEFAULT '0.000',
-  `balance` double(10,3) NOT NULL DEFAULT '0.000',
-  `pay_mode` tinyint NOT NULL DEFAULT '1',
-  `pay_type` tinyint NOT NULL DEFAULT '0',
-  `uid` int NOT NULL,
-  `date` date NOT NULL,
-  `time` time NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_bill_due` */
-
-/*Table structure for table `prod_bill_due_collection` */
-
-DROP TABLE IF EXISTS `prod_bill_due_collection`;
-
-CREATE TABLE `prod_bill_due_collection` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `bill_id` int NOT NULL,
-  `balance` double(10,2) DEFAULT NULL,
-  `paid` double(10,2) DEFAULT NULL,
-  `finalBalance` double(10,2) DEFAULT NULL,
-  `mode` int DEFAULT NULL,
-  `bankOption` int DEFAULT NULL,
-  `uid` int NOT NULL,
-  `collectDate` varchar(255) DEFAULT NULL,
-  `collectTime` varchar(255) DEFAULT NULL,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `billId` (`bill_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_bill_due_collection` */
-
-/*Table structure for table `prod_bill_payment` */
-
-DROP TABLE IF EXISTS `prod_bill_payment`;
-
-CREATE TABLE `prod_bill_payment` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `bill_id` int NOT NULL,
-  `cash` double(10,2) DEFAULT '0.00',
-  `bank` double(10,2) DEFAULT '0.00',
-  `paymentType` int DEFAULT '0' COMMENT 'prod_bill_payment_type',
-  PRIMARY KEY (`id`),
-  KEY `billid` (`bill_id`),
-  KEY `paymentType` (`paymentType`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_bill_payment` */
-
-/*Table structure for table `prod_bill_payment_mode` */
-
-DROP TABLE IF EXISTS `prod_bill_payment_mode`;
-
-CREATE TABLE `prod_bill_payment_mode` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `mode` varchar(255) NOT NULL,
-  `is_active` int DEFAULT '1',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_bill_payment_mode` */
-
-insert  into `prod_bill_payment_mode`(`id`,`mode`,`is_active`) values 
-(1,'cash',1),
-(2,'bank',1),
-(3,'mixed',1);
-
-/*Table structure for table `prod_bill_payment_type` */
-
-DROP TABLE IF EXISTS `prod_bill_payment_type`;
-
-CREATE TABLE `prod_bill_payment_type` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `type` varchar(255) NOT NULL,
-  `is_active` int DEFAULT '1',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_bill_payment_type` */
-
-insert  into `prod_bill_payment_type`(`id`,`type`,`is_active`) values 
-(0,'CASH',1),
-(1,'UPI',1),
-(2,'DEBIT CARD',1),
-(3,'CREDIT CARD',1),
-(4,'NET BANKING',1),
-(5,'WALLET',1),
-(6,'CHEQUE',1);
-
-/*Table structure for table `prod_bill_payment_type_change` */
-
-DROP TABLE IF EXISTS `prod_bill_payment_type_change`;
-
-CREATE TABLE `prod_bill_payment_type_change` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `bill_id` int NOT NULL,
-  `old_cash_amount` double(10,3) DEFAULT NULL,
-  `cash_amount` double(10,3) DEFAULT NULL,
-  `old_bank_amount` double(10,3) DEFAULT NULL,
-  `bank_amount` double(10,3) DEFAULT NULL,
-  `bank_mode` int DEFAULT NULL,
-  `uid` int DEFAULT NULL,
-  `date_time` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_bill_payment_type_change` */
-
-/*Table structure for table `prod_brands` */
-
-DROP TABLE IF EXISTS `prod_brands`;
-
-CREATE TABLE `prod_brands` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `date` date NOT NULL,
-  `time` time NOT NULL,
-  `is_active` int DEFAULT '1',
-  PRIMARY KEY (`id`,`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_brands` */
-
-/*Table structure for table `prod_category` */
-
-DROP TABLE IF EXISTS `prod_category`;
-
-CREATE TABLE `prod_category` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) DEFAULT NULL,
-  `date` date NOT NULL,
-  `time` time NOT NULL,
-  `is_active` int DEFAULT '1',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_category` */
-
-/*Table structure for table `prod_cheque_allocation` */
-
-DROP TABLE IF EXISTS `prod_cheque_allocation`;
-
-CREATE TABLE `prod_cheque_allocation` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `cheque_id` int NOT NULL,
-  `bill_id` int NOT NULL,
-  `allocated_amount` double NOT NULL,
-  `allocated_date` date DEFAULT NULL,
-  `allocated_time` time DEFAULT NULL,
-  `due_date` date NOT NULL,
-  `credit_days` int DEFAULT '10',
-  `status` enum('ALLOCATED','CLEARED','REVERSED','BOUNCED') DEFAULT 'ALLOCATED',
-  `cleared_date` date DEFAULT NULL,
-  `cleared_time` time DEFAULT NULL,
-  `reversed_date` date DEFAULT NULL,
-  `reversed_time` time DEFAULT NULL,
-  `reversed_by` int DEFAULT NULL,
-  `is_reversed` tinyint DEFAULT '0',
-  `uid` int NOT NULL,
-  `notes` text,
-  PRIMARY KEY (`id`),
-  KEY `idx_cheque` (`cheque_id`),
-  KEY `idx_bill` (`bill_id`),
-  KEY `idx_status` (`status`),
-  KEY `idx_due_date` (`due_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_cheque_allocation` */
-
-/*Table structure for table `prod_cheque_events` */
-
-DROP TABLE IF EXISTS `prod_cheque_events`;
-
-CREATE TABLE `prod_cheque_events` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `cheque_id` int NOT NULL,
-  `event_type` enum('BOUNCE','EXPIRY','MANUAL_CLEAR') NOT NULL,
-  `event_date` date DEFAULT NULL,
-  `event_time` time DEFAULT NULL,
-  `reason` text,
-  `uid` int NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `idx_cheque` (`cheque_id`),
-  KEY `idx_event_type` (`event_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_cheque_events` */
-
-/*Table structure for table `prod_cheque_stock` */
-
-DROP TABLE IF EXISTS `prod_cheque_stock`;
-
-CREATE TABLE `prod_cheque_stock` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `customer_id` int NOT NULL,
-  `cheque_number` varchar(50) NOT NULL,
-  `bank_name` text,
-  `status` enum('AVAILABLE','PARTIAL','FULLY_USED','CLEARED','BOUNCED','EXPIRED') DEFAULT 'AVAILABLE',
-  `entry_date` date DEFAULT NULL,
-  `entry_time` time DEFAULT NULL,
-  `uid` int NOT NULL,
-  `notes` text,
-  `is_active` tinyint DEFAULT '1',
-  PRIMARY KEY (`id`),
-  KEY `idx_customer` (`customer_id`),
-  KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_cheque_stock` */
-
-/*Table structure for table `prod_lifecycle` */
-
-DROP TABLE IF EXISTS `prod_lifecycle`;
-
-CREATE TABLE `prod_lifecycle` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `bill_id` int NOT NULL DEFAULT '0',
-  `batch_id` int NOT NULL,
-  `product_id` int NOT NULL,
-  `stock_in` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `stock_out` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `stock_now` decimal(10,2) NOT NULL,
-  `is_zero_stock_bill` int DEFAULT '0',
-  `notes` text,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  `uid` int NOT NULL,
-  `stock_type` int DEFAULT '1' COMMENT '1=stock 2=noStock',
-  `stockAdjType` int DEFAULT '0' COMMENT '1=add 2=remove',
-  PRIMARY KEY (`id`),
-  KEY `batch` (`batch_id`),
-  KEY `prod` (`product_id`),
-  KEY `uid` (`uid`),
-  KEY `stock` (`stockAdjType`),
-  KEY `billId` (`bill_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_lifecycle` */
-
-/*Table structure for table `prod_order` */
-
-DROP TABLE IF EXISTS `prod_order`;
-
-CREATE TABLE `prod_order` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `order_no` varchar(255) NOT NULL,
-  `table_id` int NOT NULL,
-  `is_delivered` int DEFAULT '0',
-  `is_billed` int DEFAULT '0',
-  `is_cancelled` int DEFAULT '0',
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  `uid` int NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_order` */
-
-/*Table structure for table `prod_order_details` */
-
-DROP TABLE IF EXISTS `prod_order_details`;
-
-CREATE TABLE `prod_order_details` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `order_id` int NOT NULL,
-  `prod_id` int NOT NULL,
-  `qty` int NOT NULL,
-  `price` double(10,3) DEFAULT '0.000',
-  `total` double(10,3) DEFAULT '0.000',
-  `is_delivered` int DEFAULT '0',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_order_details` */
-
-/*Table structure for table `prod_product` */
-
-DROP TABLE IF EXISTS `prod_product`;
-
-CREATE TABLE `prod_product` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `code` varchar(255) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT '0',
-  `category_id` int NOT NULL,
-  `brand_id` int NOT NULL,
-  `unit_id` int DEFAULT '1',
-  `hsn` int DEFAULT NULL,
-  `uid` int NOT NULL,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  `is_active` int DEFAULT '1',
-  `gst` int NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `cat` (`category_id`),
-  KEY `brand` (`brand_id`),
-  KEY `uid` (`uid`),
-  KEY `unit` (`unit_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_product` */
-
-/*Table structure for table `prod_product_components` */
-
-DROP TABLE IF EXISTS `prod_product_components`;
-
-CREATE TABLE `prod_product_components` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `product_id` int NOT NULL COMMENT 'Main product ID',
-  `component_product_id` int NOT NULL COMMENT 'Component product ID',
-  `quantity` decimal(10,2) DEFAULT '1.00' COMMENT 'Quantity needed',
-  `created_date` datetime DEFAULT CURRENT_TIMESTAMP,
-  `created_by` int DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `prod` (`product_id`),
-  KEY `compo` (`component_product_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_product_components` */
-
-/*Table structure for table `prod_purchase` */
-
-DROP TABLE IF EXISTS `prod_purchase`;
-
-CREATE TABLE `prod_purchase` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `prno` varchar(25) NOT NULL DEFAULT '',
-  `invno` varchar(255) DEFAULT '',
-  `invdate` date DEFAULT NULL,
-  `total` double(10,2) NOT NULL DEFAULT '0.00',
-  `paid` double(10,2) NOT NULL DEFAULT '0.00',
-  `balance` double(10,2) DEFAULT '0.00',
-  `discount` double(10,2) DEFAULT '0.00',
-  `net` double NOT NULL DEFAULT '0',
-  `ent_date` date NOT NULL DEFAULT '0001-01-01',
-  `ent_time` time NOT NULL DEFAULT '00:00:00',
-  `ent_uid` int unsigned NOT NULL DEFAULT '0',
-  `ispending` tinyint unsigned DEFAULT '0',
-  `pay_type` int unsigned NOT NULL DEFAULT '0',
-  `bank_id` int unsigned NOT NULL DEFAULT '0',
-  `deal_id` int unsigned DEFAULT '0',
-  `remark` varchar(100) NOT NULL DEFAULT '0',
-  `is_cancelled` tinyint(1) NOT NULL DEFAULT '0',
-  `cancel_date` date DEFAULT '0001-01-01',
-  `cancel_time` time DEFAULT '00:00:00',
-  `cancel_uid` varchar(10) DEFAULT '0',
-  `is_po` tinyint DEFAULT '0',
-  `po_status` tinyint DEFAULT '1',
-  `pr_id` int DEFAULT NULL,
-  `grn_id` int DEFAULT '0',
-  `expected_date` date DEFAULT NULL,
-  `po_notes` text,
-  `offer` text,
-  `offer_date` date DEFAULT NULL,
-  `lr_no` varchar(255) DEFAULT NULL,
-  `lr_date` date DEFAULT NULL,
-  `lr_name` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `prno` (`prno`),
-  KEY `dealer` (`deal_id`),
-  KEY `grnid` (`grn_id`),
-  KEY `status` (`po_status`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_purchase` */
-
-/*Table structure for table `prod_purchase_counter` */
-
-DROP TABLE IF EXISTS `prod_purchase_counter`;
-
-CREATE TABLE `prod_purchase_counter` (
-  `id` int NOT NULL,
-  `last_pr_no` int DEFAULT '0',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_purchase_counter` */
-
-/*Table structure for table `prod_purchase_details` */
-
-DROP TABLE IF EXISTS `prod_purchase_details`;
-
-CREATE TABLE `prod_purchase_details` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `prid` int unsigned DEFAULT '0',
-  `prods_id` int DEFAULT '0',
-  `pack` int DEFAULT '0',
-  `qtypack` decimal(10,2) DEFAULT '0.00',
-  `quantity` decimal(10,2) unsigned DEFAULT '0.00',
-  `free` int unsigned DEFAULT '0',
-  `rate` double(10,3) DEFAULT '0.000',
-  `mrp` double(10,3) DEFAULT '0.000',
-  `totalamt` double(10,3) DEFAULT '0.000',
-  `tax` double(10,2) NOT NULL DEFAULT '0.00',
-  `tax_amt` double(10,3) DEFAULT '0.000',
-  `mrp_vat_amt` double(10,2) DEFAULT '0.00',
-  `disc_per` double(10,2) DEFAULT '0.00',
-  `disc` double(10,3) DEFAULT '0.000',
-  `netamt` double(10,3) DEFAULT '0.000',
-  `isinvoicereceived` int unsigned NOT NULL DEFAULT '0',
-  `hsn_code` varchar(20) NOT NULL DEFAULT '0',
-  `sgst_per` double(10,2) NOT NULL DEFAULT '0.00',
-  `cgst_per` double(10,2) NOT NULL DEFAULT '0.00',
-  `igst_per` double(10,2) NOT NULL DEFAULT '0.00',
-  `sgst_amt` double(10,2) NOT NULL DEFAULT '0.00',
-  `cgst_amt` double(10,2) NOT NULL DEFAULT '0.00',
-  `igst_amt` double(10,2) NOT NULL DEFAULT '0.00',
-  `unitrate` double(10,3) DEFAULT '0.000',
-  `unitmrp` double(10,3) DEFAULT '0.000',
-  `ordered_qty` int DEFAULT '0',
-  `received_qty` int DEFAULT '0',
-  `pending_qty` int DEFAULT '0',
-  `is_fully_received` tinyint DEFAULT '0',
-  `is_cancelled` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = this item was cancelled',
-  PRIMARY KEY (`id`),
-  KEY `prid` (`prid`),
-  KEY `prod` (`prods_id`),
-  KEY `fullyreceive` (`is_fully_received`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_purchase_details` */
-
-/*Table structure for table `prod_purchase_edit_log` */
-
-DROP TABLE IF EXISTS `prod_purchase_edit_log`;
-
-CREATE TABLE `prod_purchase_edit_log` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `purchase_id` int NOT NULL,
-  `purchase_detail_id` int NOT NULL,
-  `product_id` int NOT NULL,
-  `edit_type` enum('price_edit','cancel') NOT NULL,
-  `old_rate` double DEFAULT NULL,
-  `new_rate` double DEFAULT NULL,
-  `old_mrp` double DEFAULT NULL,
-  `new_mrp` double DEFAULT NULL,
-  `qty` double DEFAULT NULL,
-  `reason` text,
-  `uid` int NOT NULL,
-  `date_time` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `purchase_id` (`purchase_id`),
-  KEY `product_id` (`product_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_purchase_edit_log` */
-
-/*Table structure for table `prod_purchase_entry_details_link` */
-
-DROP TABLE IF EXISTS `prod_purchase_entry_details_link`;
-
-CREATE TABLE `prod_purchase_entry_details_link` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `link_id` int NOT NULL,
-  `po_detail_id` bigint unsigned NOT NULL,
-  `pe_detail_id` bigint unsigned NOT NULL,
-  `quantity_received` int NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_purchase_entry_details_link` */
-
-/*Table structure for table `prod_purchase_entry_link` */
-
-DROP TABLE IF EXISTS `prod_purchase_entry_link`;
-
-CREATE TABLE `prod_purchase_entry_link` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `po_id` bigint unsigned NOT NULL,
-  `pe_id` bigint unsigned NOT NULL,
-  `receipt_no` varchar(50) DEFAULT NULL,
-  `receipt_date` date DEFAULT NULL,
-  `received_by` int DEFAULT NULL,
-  `notes` text,
-  `created_date` date NOT NULL,
-  `created_time` time NOT NULL,
-  `uid` int NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_purchase_entry_link` */
-
-/*Table structure for table `prod_purchase_order_counter` */
-
-DROP TABLE IF EXISTS `prod_purchase_order_counter`;
-
-CREATE TABLE `prod_purchase_order_counter` (
-  `id` int NOT NULL DEFAULT '1',
-  `last_po_no` int DEFAULT '0',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_purchase_order_counter` */
-
-/*Table structure for table `prod_purchase_request` */
-
-DROP TABLE IF EXISTS `prod_purchase_request`;
-
-CREATE TABLE `prod_purchase_request` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `req_no` varchar(50) NOT NULL COMMENT 'REQ1, REQ2, REQ3...',
-  `req_date` date NOT NULL,
-  `req_time` time NOT NULL,
-  `deal_id` int DEFAULT NULL COMMENT 'Supplier ID - can be null for TBD supplier',
-  `total` decimal(15,2) DEFAULT '0.00' COMMENT 'Total request amount',
-  `pr_status` tinyint DEFAULT '1' COMMENT '1=Draft, 2=Submitted, 3=Approved, 4=Rejected, 5=Converted to PO',
-  `notes` text COMMENT 'Request notes/justification',
-  `requested_by` int NOT NULL COMMENT 'User ID who created the request',
-  `approver_id` int DEFAULT NULL COMMENT 'User ID who approved/rejected - for future multi-level approval',
-  `approved_date` date DEFAULT NULL COMMENT 'Approval date',
-  `approved_time` time DEFAULT NULL COMMENT 'Approval time',
-  `approval_notes` text COMMENT 'Approval/rejection notes',
-  `po_id` int DEFAULT NULL COMMENT 'Link to PO if converted',
-  `is_cancelled` tinyint DEFAULT '0' COMMENT '0=Active, 1=Cancelled',
-  `ent_date` date NOT NULL,
-  `ent_time` time NOT NULL,
-  `ent_uid` int NOT NULL COMMENT 'Entry user ID',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `req_no` (`req_no`),
-  KEY `deal` (`deal_id`),
-  KEY `status` (`pr_status`),
-  KEY `po` (`po_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Purchase Request Header';
-
-/*Data for the table `prod_purchase_request` */
-
-/*Table structure for table `prod_purchase_request_counter` */
-
-DROP TABLE IF EXISTS `prod_purchase_request_counter`;
-
-CREATE TABLE `prod_purchase_request_counter` (
-  `id` int NOT NULL DEFAULT '1',
-  `last_req_no` int DEFAULT '0',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_purchase_request_counter` */
-
-/*Table structure for table `prod_purchase_request_details` */
-
-DROP TABLE IF EXISTS `prod_purchase_request_details`;
-
-CREATE TABLE `prod_purchase_request_details` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `pr_id` int NOT NULL COMMENT 'Foreign key to prod_purchase_request',
-  `prods_id` int NOT NULL COMMENT 'Product ID',
-  `pack` int DEFAULT '1' COMMENT 'Number of packs',
-  `qtypack` int DEFAULT '1' COMMENT 'Quantity per pack',
-  `quantity` int NOT NULL COMMENT 'Total quantity requested',
-  `free` int DEFAULT '0' COMMENT 'Free quantity expected',
-  `rate` decimal(15,2) DEFAULT '0.00' COMMENT 'Expected cost per unit',
-  `mrp` decimal(15,2) DEFAULT '0.00' COMMENT 'Expected MRP',
-  `total` decimal(15,2) DEFAULT '0.00' COMMENT 'Line total',
-  `tax` decimal(5,2) DEFAULT '0.00' COMMENT 'Tax percentage',
-  `tax_amt` decimal(15,2) DEFAULT '0.00' COMMENT 'Tax amount',
-  `disc_per` decimal(5,2) DEFAULT '0.00' COMMENT 'Discount percentage',
-  `disc_amt` decimal(15,2) DEFAULT '0.00' COMMENT 'Discount amount',
-  `net` decimal(15,2) DEFAULT '0.00' COMMENT 'Net amount',
-  `notes` text COMMENT 'Item notes',
-  PRIMARY KEY (`id`),
-  KEY `idx_pr_id` (`pr_id`),
-  KEY `idx_prods_id` (`prods_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Purchase Request Line Items';
-
-/*Data for the table `prod_purchase_request_details` */
-
-/*Table structure for table `prod_purchase_return` */
-
-DROP TABLE IF EXISTS `prod_purchase_return`;
-
-CREATE TABLE `prod_purchase_return` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `return_no` varchar(50) DEFAULT NULL,
-  `purchase_id` int NOT NULL,
-  `supplier_id` int DEFAULT NULL,
-  `total` double DEFAULT '0',
-  `notes` text,
-  `uid` int NOT NULL,
-  `date_time` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `purchase_id` (`purchase_id`),
-  KEY `supplier_id` (`supplier_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_purchase_return` */
-
-/*Table structure for table `prod_purchase_return_details` */
-
-DROP TABLE IF EXISTS `prod_purchase_return_details`;
-
-CREATE TABLE `prod_purchase_return_details` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `return_id` int NOT NULL,
-  `purchase_detail_id` int NOT NULL,
-  `product_id` int NOT NULL,
-  `qty` double DEFAULT '0',
-  `rate` double DEFAULT '0',
-  `total` double DEFAULT '0',
-  `uid` int NOT NULL,
-  `date_time` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `return_id` (`return_id`),
-  KEY `purchase_detail_id` (`purchase_detail_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_purchase_return_details` */
-
-/*Table structure for table `prod_purchase_supplier_payment` */
-
-DROP TABLE IF EXISTS `prod_purchase_supplier_payment`;
-
-CREATE TABLE `prod_purchase_supplier_payment` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `prid` int NOT NULL,
-  `deal_id` int NOT NULL,
-  `total` double(10,2) DEFAULT NULL,
-  `paid` double(10,2) DEFAULT NULL,
-  `balance` double(10,2) DEFAULT NULL,
-  `is_active` int DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `prid` (`prid`),
-  KEY `deal` (`deal_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_purchase_supplier_payment` */
-
-/*Table structure for table `prod_purchase_supplier_payment_details` */
-
-DROP TABLE IF EXISTS `prod_purchase_supplier_payment_details`;
-
-CREATE TABLE `prod_purchase_supplier_payment_details` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `supPayId` int NOT NULL,
-  `payable` double(10,2) DEFAULT NULL,
-  `paid` double(10,2) DEFAULT NULL,
-  `balance` double(10,2) DEFAULT NULL,
-  `pay_type` int DEFAULT NULL,
-  `pay_mode` int DEFAULT '0',
-  `uid` int DEFAULT NULL,
-  `notes` text,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `payId` (`supPayId`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_purchase_supplier_payment_details` */
-
-/*Table structure for table `prod_quotation` */
-
-DROP TABLE IF EXISTS `prod_quotation`;
-
-CREATE TABLE `prod_quotation` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `bill_display` varchar(255) NOT NULL,
-  `total` double(10,3) DEFAULT '0.000',
-  `prodDisc` double(10,3) DEFAULT '0.000',
-  `extraDisc` double(10,3) DEFAULT '0.000',
-  `payable` double(10,3) DEFAULT '0.000',
-  `is_billed` int DEFAULT '0',
-  `is_cancelled` int DEFAULT '0',
-  `cusName` varchar(255) DEFAULT NULL,
-  `cusPhn` varchar(255) DEFAULT NULL,
-  `customerId` int DEFAULT NULL,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  `uid` int DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_quotation` */
-
-/*Table structure for table `prod_quotation_details` */
-
-DROP TABLE IF EXISTS `prod_quotation_details`;
-
-CREATE TABLE `prod_quotation_details` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `quot_id` int NOT NULL,
-  `prod_id` int NOT NULL,
-  `qty` decimal(10,2) NOT NULL,
-  `price` double(10,3) NOT NULL,
-  `disc` double(10,3) DEFAULT NULL,
-  `total` double(10,3) DEFAULT NULL,
-  `gst` int DEFAULT NULL,
-  `is_cancelled` int DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_quotation_details` */
-
-/*Table structure for table `prod_stock_adjustment` */
-
-DROP TABLE IF EXISTS `prod_stock_adjustment`;
-
-CREATE TABLE `prod_stock_adjustment` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `product_id` int NOT NULL,
-  `batch_id` int NOT NULL,
-  `stockType` int NOT NULL COMMENT '1=add 2=minus',
-  `stock` decimal(10,2) NOT NULL,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  `notes` text,
-  `uid` int NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `prod` (`product_id`),
-  KEY `batch` (`batch_id`),
-  KEY `stock` (`stockType`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_stock_adjustment` */
-
-/*Table structure for table `prod_stock_totals` */
-
-DROP TABLE IF EXISTS `prod_stock_totals`;
-
-CREATE TABLE `prod_stock_totals` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `prods_id` int unsigned NOT NULL DEFAULT '0',
-  `stock` decimal(10,2) unsigned NOT NULL DEFAULT '0.00',
-  `rack` char(1) NOT NULL DEFAULT '',
-  `shelf` int NOT NULL DEFAULT '0',
-  `userlog` text,
-  `extra1` tinyint unsigned DEFAULT '0',
-  `extra2` tinyint unsigned DEFAULT '0',
-  PRIMARY KEY (`id`),
-  KEY `store_id_index` (`prods_id`),
-  KEY `stock` (`stock`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_stock_totals` */
-
-/*Table structure for table `prod_supplier` */
-
-DROP TABLE IF EXISTS `prod_supplier`;
-
-CREATE TABLE `prod_supplier` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `phone_number` varchar(255) DEFAULT NULL,
-  `description` varchar(255) DEFAULT NULL,
-  `date` date DEFAULT NULL,
-  `time` time DEFAULT NULL,
-  `is_active` int DEFAULT '1',
-  `gstin` varchar(255) DEFAULT NULL,
-  `is_gst` int DEFAULT '0',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-/*Data for the table `prod_supplier` */
-
-/*Table structure for table `prod_supplier_cheque_allocation` */
-
-DROP TABLE IF EXISTS `prod_supplier_cheque_allocation`;
-
-CREATE TABLE `prod_supplier_cheque_allocation` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `cheque_id` int NOT NULL,
-  `purchase_id` int NOT NULL,
-  `allocated_amount` decimal(10,2) NOT NULL,
-  `allocated_date` date NOT NULL,
-  `allocated_time` time NOT NULL,
-  `allocated_uid` int NOT NULL,
-  `due_date` date DEFAULT NULL,
-  `credit_days` int DEFAULT '10',
-  `status` varchar(20) NOT NULL DEFAULT 'ALLOCATED',
-  `cleared_date` date DEFAULT NULL,
-  `cleared_time` time DEFAULT NULL,
-  `cleared_uid` int DEFAULT NULL,
-  `is_reversed` tinyint(1) DEFAULT '0',
-  `reversed_date` date DEFAULT NULL,
-  `reversed_time` time DEFAULT NULL,
-  `reversed_uid` int DEFAULT NULL,
-  `is_active` tinyint(1) DEFAULT '1',
-  PRIMARY KEY (`id`),
-  KEY `idx_cheque` (`cheque_id`),
-  KEY `idx_purchase` (`purchase_id`),
-  KEY `idx_status` (`status`),
-  KEY `idx_active` (`is_active`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_supplier_cheque_allocation` */
-
-/*Table structure for table `prod_supplier_cheque_events` */
-
-DROP TABLE IF EXISTS `prod_supplier_cheque_events`;
-
-CREATE TABLE `prod_supplier_cheque_events` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `cheque_id` int NOT NULL,
-  `event_type` varchar(20) NOT NULL,
-  `event_date` date NOT NULL,
-  `event_time` time NOT NULL,
-  `event_uid` int NOT NULL,
-  `reason` text,
-  PRIMARY KEY (`id`),
-  KEY `idx_cheque` (`cheque_id`),
-  KEY `idx_event_type` (`event_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_supplier_cheque_events` */
-
-/*Table structure for table `prod_supplier_cheque_stock` */
-
-DROP TABLE IF EXISTS `prod_supplier_cheque_stock`;
-
-CREATE TABLE `prod_supplier_cheque_stock` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `supplier_id` int NOT NULL,
-  `cheque_number` varchar(255) NOT NULL,
-  `bank_name` text,
-  `entry_date` date NOT NULL,
-  `entry_time` time NOT NULL,
-  `entry_uid` int NOT NULL,
-  `status` varchar(20) NOT NULL DEFAULT 'AVAILABLE',
-  `is_active` tinyint(1) DEFAULT '1',
-  PRIMARY KEY (`id`),
-  KEY `idx_supplier` (`supplier_id`),
-  KEY `idx_status` (`status`),
-  KEY `idx_active` (`is_active`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_supplier_cheque_stock` */
-
-/*Table structure for table `prod_units` */
-
-DROP TABLE IF EXISTS `prod_units`;
-
-CREATE TABLE `prod_units` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) DEFAULT NULL,
-  `convertion_unit` varchar(255) DEFAULT NULL,
-  `convertion_calculation` decimal(10,2) DEFAULT NULL,
-  `is_active` int DEFAULT '1',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `prod_units` */
-
-insert  into `prod_units`(`id`,`name`,`convertion_unit`,`convertion_calculation`,`is_active`) values 
-(1,'NOS',NULL,NULL,1),
-(2,'Gram',NULL,NULL,1),
-(3,'KG',NULL,NULL,1),
-(4,'Meter',NULL,NULL,1),
-(5,'length','Feet',20.00,1);
-
-/*Table structure for table `sales_area` */
-
-DROP TABLE IF EXISTS `sales_area`;
-
-CREATE TABLE `sales_area` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `is_active` int DEFAULT NULL,
-  `created_date` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `sales_area` */
-
-/*Table structure for table `sales_man` */
-
-DROP TABLE IF EXISTS `sales_man`;
-
-CREATE TABLE `sales_man` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `is_active` int DEFAULT '1',
-  `created_date` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `sales_man` */
-
-/*Table structure for table `special_permission` */
-
-DROP TABLE IF EXISTS `special_permission`;
-
-CREATE TABLE `special_permission` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `content` varchar(255) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-/*Data for the table `special_permission` */
-
-insert  into `special_permission`(`id`,`content`) values 
-(1,'allow to Zero stock billing ');
-
 /*Table structure for table `user_modules` */
 
 DROP TABLE IF EXISTS `user_modules`;
@@ -1565,17 +491,11 @@ CREATE TABLE `user_modules` (
 /*Data for the table `user_modules` */
 
 insert  into `user_modules`(`id`,`module_name`) values 
-(1,'Billing'),
-(2,'Master'),
-(3,'Stock Reports'),
-(4,'User management'),
-(5,'Inventory'),
-(6,'Account Report'),
-(7,'Admin'),
-(8,'Statistics'),
-(10,'Credit Management'),
-(11,'order list'),
-(12,'Expense');
+(1,'Currency Exchange'),
+(2,'Exchange Report'),
+(3,'Customer'),
+(4,'Expense'),
+(5,'Admin');
 
 /*Table structure for table `user_permission` */
 
@@ -1599,14 +519,7 @@ insert  into `user_permission`(`id`,`module_id`,`uid`,`date`,`time`) values
 (71,2,1,'2025-09-19','11:43:23'),
 (72,3,1,'2025-09-19','11:43:23'),
 (73,4,1,'2025-09-19','11:43:23'),
-(74,5,1,'2025-09-19','11:43:23'),
-(75,6,1,'2025-09-19','11:43:23'),
-(76,7,1,'2025-09-19','11:43:23'),
-(77,8,1,'2025-09-19','11:43:23'),
-(102,10,1,'2026-01-16','17:40:35'),
-(113,11,1,'2026-01-25','17:40:35'),
-(120,9,1,'2026-03-05','17:40:35'),
-(121,12,1,'2026-01-25','17:40:35');
+(74,5,1,'2025-09-19','11:43:23');
 
 /*Table structure for table `user_special_permission` */
 

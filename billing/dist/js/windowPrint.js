@@ -78,7 +78,7 @@
         var tableHTML = table.outerHTML.replace(/ /g, '%20');
 
         // Specify file name
-        filename = filename ? filename + '.xls' : 'excel_data.xls';
+        filename = filename ? filename + '.xlsx' : 'excel_data.xlsx';
 
         // Create download link
         var downloadLink = document.createElement("a");
@@ -94,4 +94,31 @@
             downloadLink.download = filename;
             downloadLink.click();
         }
+    }
+
+    function exportTableToPdf(tableID, title) {
+        var table = document.getElementById(tableID);
+        if (!table) return;
+
+        var newWin = window.open("", "_blank");
+        newWin.document.write(`
+        <html>
+        <head>
+            <title>${title || 'Report'}</title>
+            <style>
+                body, h1, h2, h3, h4, h5, h6, p, span, td, th, a, div { color: #000 !important; }
+                table { border-collapse: collapse !important; width: 100%; font-size: 12px; }
+                table, th, td { border: 1px solid black !important; padding: 5px !important; }
+                th { background: #ccc !important; }
+            </style>
+        </head>
+        <body>
+            <h3>${title || 'Report'}</h3>
+            ${table.outerHTML}
+        </body>
+        </html>
+        `);
+        newWin.document.close();
+        newWin.focus();
+        setTimeout(function() { newWin.print(); }, 300);
     }

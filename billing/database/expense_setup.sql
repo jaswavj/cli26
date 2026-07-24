@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS `expense_entry` (
   `content` varchar(255) NOT NULL,
   `description` text DEFAULT NULL,
   `amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `payment_id` int(11) DEFAULT NULL,
   `exc_date_time` datetime NOT NULL,
   `entry_date_time` datetime NOT NULL,
   `is_active` int(11) NOT NULL DEFAULT 1,

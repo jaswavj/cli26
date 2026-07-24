@@ -2,11 +2,11 @@
 
 <workspace_user>
 	<active_project>
-		<label>saiExchange</label>
+		<label>saiexchange</label>
 	</active_project>
 	<projects>
 		<project>
-			<label>saiExchange</label>
+			<label>saiexchange</label>
 			<showfiles>false</showfiles>
 			<folderitem>
 				<path>billing</path>
@@ -16,6 +16,9 @@
 			</folderitem>
 			<folderitem>
 				<path>currency</path>
+			</folderitem>
+			<folderitem>
+				<path>customer</path>
 			</folderitem>
 			<folderitem>
 				<path>path</path>

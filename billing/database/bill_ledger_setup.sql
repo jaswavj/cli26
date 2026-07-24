@@ -12,21 +12,26 @@ INSERT IGNORE INTO ce_bill_type (id, name) VALUES
 (1, 'advance'),
 (2, 'due'),
 (3, 'due collection'),
-(4, 'exchange bill');
+(4, 'exchange bill'),
+(5, 'expense');
 
 CREATE TABLE IF NOT EXISTS ce_bill_ledger (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    customer_id INT NOT NULL,
+    customer_id INT NULL,
     bill_type INT NOT NULL,
     bill_id INT NOT NULL,
     advance DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
     final_advance DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
     due DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
     final_due DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
+    is_cash DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
+    is_bank DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
+    payment_id INT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_ce_bill_ledger_customer (customer_id),
     KEY idx_ce_bill_ledger_type (bill_type),
     KEY idx_ce_bill_ledger_bill (bill_type, bill_id),
+    KEY idx_ce_bill_ledger_payment (payment_id),
     CONSTRAINT fk_ce_bill_ledger_customer FOREIGN KEY (customer_id) REFERENCES ce_customer (id),
     CONSTRAINT fk_ce_bill_ledger_type FOREIGN KEY (bill_type) REFERENCES ce_bill_type (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

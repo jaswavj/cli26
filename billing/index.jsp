@@ -49,7 +49,7 @@ if (submittedUser != null && submittedPass != null) {
             // Success - Redirect to dashboard
             session.setAttribute("userId", userId);
             session.setAttribute("username", dbUser);
-            response.sendRedirect(request.getContextPath() + "/billing/app.jsp");
+            response.sendRedirect(request.getContextPath() + "/exchange/app.jsp");
 
             
             return;

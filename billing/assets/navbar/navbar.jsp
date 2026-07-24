@@ -87,51 +87,49 @@ for (int i = 0; i < vecPer.size(); i++) {
   </div>
   <div class="sidebar-menu">
 
+    <% if (permissions.contains(1)) { %>
+    <div class="sidebar-dropdown">
+      <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#exchangeMenu">
+        <i class="fa-solid fa-right-left"></i>
+        <span>Currency Exchange</span>
+        <i class="fas fa-chevron-down ms-auto"></i>
+      </a>
+      <div class="collapse sidebar-submenu" id="exchangeMenu">
+        <a href="<%=request.getContextPath()%>/exchange/page.jsp" class="sidebar-subitem">New Exchange</a>
+        <a href="<%=request.getContextPath()%>/master/exchange/page.jsp" class="sidebar-subitem">Currency Master</a>
+      </div>
+    </div>
+    <% } %>
     <% if (permissions.contains(2)) { %>
     <div class="sidebar-dropdown">
-      <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#masterMenu">
-        <i class="fas fa-box"></i>
-        <span>Master</span>
+      <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#exchangeReportMenu">
+        <i class="fa-solid fa-chart-line"></i>
+        <span> Reports</span>
         <i class="fas fa-chevron-down ms-auto"></i>
       </a>
-      <div class="collapse sidebar-submenu" id="masterMenu">
-        <a href="<%=request.getContextPath()%>/master/exchange/page.jsp" class="sidebar-subitem">Exchange</a>
+      <div class="collapse sidebar-submenu" id="exchangeReportMenu">
+        <a href="<%=request.getContextPath()%>/exchange/report/exchangeReport.jsp" class="sidebar-subitem">Exchange Report</a>
+        <a href="<%=request.getContextPath()%>/exchange/report/stockReport.jsp" class="sidebar-subitem">Current Stock Report</a>
+        <a href="<%=request.getContextPath()%>/exchange/report/stockTransactionReport.jsp" class="sidebar-subitem">Stock Trans Report</a>
+        <a href="<%=request.getContextPath()%>/exchange/report/ledgerReport.jsp" class="sidebar-subitem">Ledger Report</a>
       </div>
     </div>
     <% } %>
 
+    <% if (permissions.contains(3)) { %>
+    <div class="sidebar-dropdown">
+      <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#customerMenu">
+        <i class="fas fa-users"></i>
+        <span>Customer</span>
+        <i class="fas fa-chevron-down ms-auto"></i>
+      </a>
+      <div class="collapse sidebar-submenu" id="customerMenu">
+        <a href="<%=request.getContextPath()%>/customer/master/page.jsp" class="sidebar-subitem">Customer Master</a>
+        <a href="<%=request.getContextPath()%>/customer/enquiry/page.jsp" class="sidebar-subitem">Customer Enquiry</a>
+      </div>
+    </div>
+    <% } %>
     <% if (permissions.contains(4)) { %>
-    <div class="sidebar-dropdown">
-      <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#adminMenu">
-        <i class="fas fa-user-shield"></i>
-        <span>User Management</span>
-        <i class="fas fa-chevron-down ms-auto"></i>
-      </a>
-      <div class="collapse sidebar-submenu" id="adminMenu">
-        <a href="<%=request.getContextPath()%>/admin/userCreate/page.jsp" class="sidebar-subitem">Create User</a>
-        <a href="<%=request.getContextPath()%>/admin/permission/page.jsp" class="sidebar-subitem">Module Permission</a>
-        <a href="<%=request.getContextPath()%>/admin/specialPermission/page.jsp" class="sidebar-subitem">Special Permission</a>
-      </div>
-    </div>
-    <% } %>
-
-    <% if (permissions.contains(7)) { %>
-    <div class="sidebar-dropdown">
-      <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#adminReportMenu">
-        <i class="fas fa-chart-pie"></i>
-        <span>Admin</span>
-        <i class="fas fa-chevron-down ms-auto"></i>
-      </a>
-      <div class="collapse sidebar-submenu" id="adminReportMenu">
-        <a href="<%=request.getContextPath()%>/admin/companyDetails/page.jsp" class="sidebar-subitem">Company Details</a>
-        <% if (permissions.contains(1)) { %>
-        <a href="<%=request.getContextPath()%>/billing/billing.jsp" class="sidebar-subitem">Billing</a>
-        <% } %>
-      </div>
-        </div>
-    <% } %>
-
-    <% if (permissions.contains(12)) { %>
     <div class="sidebar-dropdown">
       <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#expenseMenu">
         <i class="fas fa-money-bill-wave"></i>
@@ -146,19 +144,25 @@ for (int i = 0; i < vecPer.size(); i++) {
     </div>
     <% } %>
 
-    <% if (permissions.contains(10)) { %>
+    <% if (permissions.contains(5)) { %>
     <div class="sidebar-dropdown">
-      <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#customerMenu">
-        <i class="fas fa-users"></i>
-        <span>Customer</span>
+      <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#adminReportMenu">
+        <i class="fas fa-chart-pie"></i>
+        <span>Admin</span>
         <i class="fas fa-chevron-down ms-auto"></i>
       </a>
-      <div class="collapse sidebar-submenu" id="customerMenu">
-        <a href="<%=request.getContextPath()%>/customer/master/page.jsp" class="sidebar-subitem">Customer Master</a>
-        <a href="<%=request.getContextPath()%>/customer/enquiry/page.jsp" class="sidebar-subitem">Customer Enquiry</a>
+      <div class="collapse sidebar-submenu" id="adminReportMenu">
+        <a href="<%=request.getContextPath()%>/admin/companyDetails/page.jsp" class="sidebar-subitem">Company Details</a>
+        <a href="<%=request.getContextPath()%>/admin/userCreate/page.jsp" class="sidebar-subitem">Create User</a>
+        <a href="<%=request.getContextPath()%>/admin/permission/page.jsp" class="sidebar-subitem">Module Permission</a>
+
       </div>
-    </div>
+        </div>
     <% } %>
+
+
+
+    
 
   </div>
 </div>
@@ -277,18 +281,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check subitems first
     allSubitems.forEach(subitem => {
         const href = subitem.getAttribute('href');
-        if (href && currentPath.includes(href)) {
+        if (href && href !== '#' && currentPath.includes(href)) {
             subitem.classList.add('active');
-            // Find and open parent collapse
-            const parentCollapse = subitem.closest('.sidebar-submenu');
-            if (parentCollapse) {
+            let parentCollapse = subitem.closest('.sidebar-submenu');
+            while (parentCollapse) {
                 parentCollapse.classList.add('show');
-                // Add active class to parent menu item
                 const parentToggle = parentCollapse.previousElementSibling;
                 if (parentToggle) {
                     parentToggle.classList.add('active');
                     parentToggle.setAttribute('aria-expanded', 'true');
                 }
+                parentCollapse = parentCollapse.parentElement
+                    ? parentCollapse.parentElement.closest('.sidebar-submenu')
+                    : null;
             }
         }
     });
