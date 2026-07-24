@@ -2063,9 +2063,16 @@ thead.sticky-top th {
         font-size: 10px;
     }
     
-    .form-control, .form-select, .btn {
-        font-size: 10px !important;
-        padding: 3px !important; 
+    .form-control, .form-select {
+        font-size: 16px !important;
+        padding: 12px 14px !important;
+        min-height: 48px;
+    }
+
+    .btn {
+        font-size: 14px !important;
+        padding: 10px 14px !important;
+        min-height: 44px;
     }
     
     label {
@@ -2093,8 +2100,9 @@ thead.sticky-top th {
     .input-outline input,
     .input-outline textarea,
     .input-outline .form-control {
-        padding: 0.45rem 0.75rem;
-        font-size: 0.85rem;
+        padding: 12px 14px;
+        font-size: 16px;
+        min-height: 48px;
     }
     
     /* Make buttons full width on mobile */
