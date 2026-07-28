@@ -37,9 +37,19 @@ CREATE TABLE `ce_bill_ledger` (
   KEY `idx_ce_bill_ledger_payment` (`payment_id`),
   KEY `fk_ce_bill_ledger_customer` (`customer_id`),
   CONSTRAINT `fk_ce_bill_ledger_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_bill_ledger` */
+
+insert  into `ce_bill_ledger`(`id`,`customer_id`,`bill_type`,`bill_id`,`advance`,`final_advance`,`due`,`final_due`,`is_cash`,`is_bank`,`payment_id`,`created_at`) values 
+(1,1,4,1,0.0000,510.0000,0.0000,0.0000,500.0000,0.0000,1,'2026-07-28 21:37:18'),
+(2,1,4,2,510.0000,510.0000,0.0000,55.0000,50.0000,0.0000,1,'2026-07-28 21:40:21'),
+(3,1,6,1,510.0000,500.0000,55.0000,55.0000,10.0000,0.0000,1,'2026-07-28 21:43:34'),
+(4,1,6,2,500.0000,250.0000,55.0000,55.0000,250.0000,0.0000,1,'2026-07-28 21:44:37'),
+(5,1,3,1,250.0000,250.0000,55.0000,30.0000,25.0000,0.0000,1,'2026-07-28 21:45:49'),
+(6,1,6,3,250.0000,200.0000,30.0000,30.0000,50.0000,0.0000,1,'2026-07-28 21:48:23'),
+(7,1,3,2,200.0000,200.0000,30.0000,15.0000,15.0000,0.0000,1,'2026-07-28 21:48:35'),
+(8,2,4,3,0.0000,0.0000,0.0000,0.0000,0.0000,1665.0000,2,'2026-07-28 21:58:13');
 
 /*Table structure for table `ce_bill_type` */
 
@@ -49,7 +59,7 @@ CREATE TABLE `ce_bill_type` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_bill_type` */
 
@@ -58,7 +68,8 @@ insert  into `ce_bill_type`(`id`,`name`) values
 (2,'due'),
 (3,'due collection'),
 (4,'exchange bill'),
-(5,'Expense');
+(5,'Expense'),
+(6,'advance payment');
 
 /*Table structure for table `ce_currency` */
 
@@ -76,9 +87,14 @@ CREATE TABLE `ce_currency` (
   UNIQUE KEY `uk_ce_currency_code` (`currency_code`),
   KEY `idx_ce_currency_active` (`is_active`),
   KEY `idx_ce_currency_base` (`is_base`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency` */
+
+insert  into `ce_currency`(`id`,`currency_code`,`currency_name`,`is_active`,`is_base`,`created_at`,`updated_at`) values 
+(1,'INR','INR',1,1,'2026-07-28 21:34:00','2026-07-28 21:34:00'),
+(2,'USD','USD',1,0,'2026-07-28 21:34:36','2026-07-28 21:34:36'),
+(3,'EUR','EURO',1,0,'2026-07-28 21:57:38','2026-07-28 21:57:38');
 
 /*Table structure for table `ce_currency_exchange` */
 
@@ -93,6 +109,8 @@ CREATE TABLE `ce_currency_exchange` (
   `amount` decimal(18,4) NOT NULL,
   `counter_currency_id` int NOT NULL,
   `counter_amount` decimal(18,4) NOT NULL,
+  `paid` decimal(18,4) NOT NULL DEFAULT '0.0000',
+  `balance` decimal(18,4) NOT NULL DEFAULT '0.0000',
   `payment_id` int NOT NULL,
   `notes` text,
   `uid` int NOT NULL,
@@ -106,9 +124,14 @@ CREATE TABLE `ce_currency_exchange` (
   KEY `idx_ce_currency_exchange_payment` (`payment_id`),
   KEY `idx_ce_currency_exchange_cancelled` (`is_cancelled`),
   KEY `idx_ce_currency_exchange_counter` (`counter_currency_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency_exchange` */
+
+insert  into `ce_currency_exchange`(`id`,`customer_id`,`exchange_type`,`exchange_date`,`currency_id`,`amount`,`counter_currency_id`,`counter_amount`,`paid`,`balance`,`payment_id`,`notes`,`uid`,`is_cancelled`,`created_at`) values 
+(1,1,1,'2026-07-28',2,10.0000,1,1010.0000,500.0000,510.0000,1,'wwww',1,0,'2026-07-28 21:37:18'),
+(2,1,2,'2026-07-28',2,1.0000,1,105.0000,50.0000,55.0000,1,'a',1,0,'2026-07-28 21:40:21'),
+(3,2,1,'2026-07-28',3,15.0000,1,1665.0000,1665.0000,0.0000,2,NULL,1,0,'2026-07-28 21:58:13');
 
 /*Table structure for table `ce_currency_limit` */
 
@@ -125,9 +148,14 @@ CREATE TABLE `ce_currency_limit` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_ce_currency_limit_pair` (`currency_id`,`ref_currency_id`),
   KEY `idx_ce_currency_limit_ref` (`ref_currency_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency_limit` */
+
+insert  into `ce_currency_limit`(`id`,`currency_id`,`ref_currency_id`,`min_value`,`max_value`,`created_at`,`updated_at`) values 
+(1,2,1,100.0000,110.0000,'2026-07-28 21:34:36','2026-07-28 21:34:36'),
+(2,1,2,0.0000,0.0000,'2026-07-28 21:34:36','2026-07-28 21:34:36'),
+(3,3,1,110.0000,112.0000,'2026-07-28 21:57:38','2026-07-28 21:57:38');
 
 /*Table structure for table `ce_currency_stock` */
 
@@ -141,9 +169,14 @@ CREATE TABLE `ce_currency_stock` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_ce_currency_stock_currency` (`currency_id`),
   CONSTRAINT `fk_ce_currency_stock_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency_stock` */
+
+insert  into `ce_currency_stock`(`id`,`currency_id`,`quantity`,`updated_at`) values 
+(1,1,99515.0000,'2026-07-28 21:48:35'),
+(2,2,9.0000,'2026-07-28 22:08:36'),
+(8,3,15.0000,'2026-07-28 22:08:33');
 
 /*Table structure for table `ce_currency_stock_adjustment` */
 
@@ -161,9 +194,12 @@ CREATE TABLE `ce_currency_stock_adjustment` (
   KEY `idx_ce_stock_adj_currency` (`currency_id`),
   KEY `idx_ce_stock_adj_type` (`adjustment_type`),
   CONSTRAINT `fk_ce_stock_adj_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency_stock_adjustment` */
+
+insert  into `ce_currency_stock_adjustment`(`id`,`currency_id`,`adjustment_type`,`quantity`,`reason`,`uid`,`created_at`) values 
+(1,1,1,100000.0000,'w',1,'2026-07-28 21:36:39');
 
 /*Table structure for table `ce_currency_stock_transaction` */
 
@@ -173,6 +209,7 @@ CREATE TABLE `ce_currency_stock_transaction` (
   `id` int NOT NULL AUTO_INCREMENT,
   `exchange_id` int DEFAULT NULL,
   `adjustment_id` int DEFAULT NULL,
+  `transfer_id` int DEFAULT NULL,
   `currency_id` int NOT NULL,
   `txn_type` tinyint NOT NULL COMMENT '1=Purchase In, 2=Sale Out',
   `quantity` decimal(18,4) NOT NULL,
@@ -184,12 +221,59 @@ CREATE TABLE `ce_currency_stock_transaction` (
   KEY `idx_ce_stock_txn_currency` (`currency_id`),
   KEY `idx_ce_stock_txn_type` (`txn_type`),
   KEY `idx_ce_stock_txn_adjustment` (`adjustment_id`),
+  KEY `idx_ce_stock_txn_transfer` (`transfer_id`),
   CONSTRAINT `fk_ce_currency_stock_txn_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`),
   CONSTRAINT `fk_ce_stock_txn_adjustment` FOREIGN KEY (`adjustment_id`) REFERENCES `ce_currency_stock_adjustment` (`id`),
   CONSTRAINT `fk_ce_stock_txn_exchange` FOREIGN KEY (`exchange_id`) REFERENCES `ce_currency_exchange` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency_stock_transaction` */
+
+insert  into `ce_currency_stock_transaction`(`id`,`exchange_id`,`adjustment_id`,`transfer_id`,`currency_id`,`txn_type`,`quantity`,`before_qty`,`after_qty`,`created_at`) values 
+(1,NULL,1,NULL,1,3,100000.0000,0.0000,100000.0000,'2026-07-28 21:36:39'),
+(2,1,NULL,NULL,2,1,10.0000,0.0000,10.0000,'2026-07-28 21:37:18'),
+(3,1,NULL,NULL,1,2,500.0000,100000.0000,99500.0000,'2026-07-28 21:37:18'),
+(4,2,NULL,NULL,2,2,1.0000,10.0000,9.0000,'2026-07-28 21:40:21'),
+(5,2,NULL,NULL,1,1,50.0000,99500.0000,99550.0000,'2026-07-28 21:40:21'),
+(6,NULL,NULL,NULL,1,2,50.0000,99550.0000,99500.0000,'2026-07-28 21:48:23'),
+(7,NULL,NULL,NULL,1,1,15.0000,99500.0000,99515.0000,'2026-07-28 21:48:35'),
+(8,3,NULL,NULL,3,1,15.0000,0.0000,15.0000,'2026-07-28 21:58:13'),
+(9,NULL,NULL,1,3,2,5.0000,15.0000,10.0000,'2026-07-28 22:08:00'),
+(10,NULL,NULL,2,2,1,5.0000,9.0000,14.0000,'2026-07-28 22:08:19'),
+(11,NULL,NULL,1,3,1,5.0000,10.0000,15.0000,'2026-07-28 22:08:33'),
+(12,NULL,NULL,2,2,2,5.0000,14.0000,9.0000,'2026-07-28 22:08:36');
+
+/*Table structure for table `ce_currency_transfer` */
+
+DROP TABLE IF EXISTS `ce_currency_transfer`;
+
+CREATE TABLE `ce_currency_transfer` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `customer_id` int NOT NULL,
+  `currency_id` int NOT NULL,
+  `transfer_type` tinyint NOT NULL COMMENT '1=Give, 2=Get',
+  `quantity` decimal(18,4) NOT NULL,
+  `transfer_date` date NOT NULL,
+  `notes` text,
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '0=Open, 1=Returned',
+  `return_date` date DEFAULT NULL,
+  `uid` int NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ce_currency_transfer_customer` (`customer_id`),
+  KEY `idx_ce_currency_transfer_currency` (`currency_id`),
+  KEY `idx_ce_currency_transfer_date` (`transfer_date`),
+  KEY `idx_ce_currency_transfer_type` (`transfer_type`),
+  KEY `idx_ce_currency_transfer_status` (`status`),
+  CONSTRAINT `fk_ce_currency_transfer_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`),
+  CONSTRAINT `fk_ce_currency_transfer_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `ce_currency_transfer` */
+
+insert  into `ce_currency_transfer`(`id`,`customer_id`,`currency_id`,`transfer_type`,`quantity`,`transfer_date`,`notes`,`status`,`return_date`,`uid`,`created_at`) values 
+(1,1,3,1,5.0000,'2026-07-28','fd',1,'2026-07-28',1,'2026-07-28 22:08:00'),
+(2,2,2,2,5.0000,'2026-07-28','d',1,'2026-07-28',1,'2026-07-28 22:08:19');
 
 /*Table structure for table `ce_cus_advance` */
 
@@ -209,6 +293,30 @@ CREATE TABLE `ce_cus_advance` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_cus_advance` */
+
+/*Table structure for table `ce_cus_advance_payment` */
+
+DROP TABLE IF EXISTS `ce_cus_advance_payment`;
+
+CREATE TABLE `ce_cus_advance_payment` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `customer_id` int NOT NULL,
+  `amount` decimal(18,4) NOT NULL,
+  `notes` text,
+  `payment_id` int DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ce_cus_advance_payment_customer` (`customer_id`),
+  KEY `idx_ce_cus_advance_payment_payment` (`payment_id`),
+  CONSTRAINT `fk_ce_cus_advance_payment_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `ce_cus_advance_payment` */
+
+insert  into `ce_cus_advance_payment`(`id`,`customer_id`,`amount`,`notes`,`payment_id`,`created_at`) values 
+(1,1,10.0000,'s',1,'2026-07-28 21:43:34'),
+(2,1,250.0000,'q',1,'2026-07-28 21:44:37'),
+(3,1,50.0000,NULL,1,'2026-07-28 21:48:23');
 
 /*Table structure for table `ce_cus_due` */
 
@@ -244,9 +352,13 @@ CREATE TABLE `ce_cus_due_collection` (
   KEY `idx_ce_cus_due_collection_customer` (`customer_id`),
   KEY `idx_ce_cus_due_collection_payment` (`payment_id`),
   CONSTRAINT `fk_ce_cus_due_collection_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_cus_due_collection` */
+
+insert  into `ce_cus_due_collection`(`id`,`customer_id`,`amount`,`notes`,`payment_id`,`created_at`) values 
+(1,1,25.0000,'a',1,'2026-07-28 21:45:49'),
+(2,1,15.0000,NULL,1,'2026-07-28 21:48:35');
 
 /*Table structure for table `ce_customer` */
 
@@ -265,9 +377,13 @@ CREATE TABLE `ce_customer` (
   KEY `idx_ce_customer_name` (`name`),
   KEY `idx_ce_customer_phone` (`phone_number`),
   KEY `idx_ce_customer_active` (`is_active`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_customer` */
+
+insert  into `ce_customer`(`id`,`name`,`phone_number`,`address`,`notes`,`is_active`,`created_at`,`updated_at`) values 
+(1,'jaswa','9597451419',NULL,NULL,1,'2026-07-28 21:37:18','2026-07-28 21:37:18'),
+(2,'jas','9898989898',NULL,NULL,1,'2026-07-28 21:58:13','2026-07-28 21:58:13');
 
 /*Table structure for table `ce_customer_account` */
 
@@ -283,9 +399,13 @@ CREATE TABLE `ce_customer_account` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_ce_customer_account` (`customer_id`),
   CONSTRAINT `fk_ce_customer_account_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_customer_account` */
+
+insert  into `ce_customer_account`(`id`,`customer_id`,`advance`,`due`,`created_at`,`updated_at`) values 
+(1,1,200.0000,15.0000,'2026-07-28 21:37:18','2026-07-28 21:48:35'),
+(4,2,0.0000,0.0000,'2026-07-28 21:58:13','2026-07-28 21:58:13');
 
 /*Table structure for table `ce_payment_method` */
 

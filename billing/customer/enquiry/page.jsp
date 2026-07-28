@@ -58,19 +58,13 @@ if (msg != null) {
         }
         .balance-card.advance {
             background: linear-gradient(135deg, #059669, #10b981);
-            cursor: pointer;
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-        .balance-card.advance:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(5, 150, 105, 0.35);
         }
         .balance-card.due { background: linear-gradient(135deg, #dc2626, #ef4444); }
         .balance-label { font-size: 0.78rem; opacity: 0.9; }
         .balance-value { font-size: 1.2rem; font-weight: 700; margin: 2px 0; line-height: 1.2; }
         .balance-hint { font-size: 0.68rem; opacity: 0.85; }
-        .due-actions { display: flex; gap: 4px; margin-top: 2px; }
-        .due-actions .btn { flex: 1; font-size: 0.72rem; padding: 3px 6px; line-height: 1.3; }
+        .due-actions, .advance-actions { display: flex; gap: 4px; margin-top: 2px; }
+        .due-actions .btn, .advance-actions .btn { flex: 1; font-size: 0.72rem; padding: 3px 6px; line-height: 1.3; }
         .search-results {
             position: absolute;
             z-index: 1000;
@@ -96,6 +90,9 @@ if (msg != null) {
         .entries-panel { max-height: 520px; overflow-y: auto; }
         .account-card-body { display: flex; flex-direction: row; gap: 8px; }
         .account-card-body .balance-card { flex: 1; min-width: 0; }
+        .balance-list-table tbody tr { cursor: pointer; }
+        .balance-list-table tbody tr:hover { background: #f8fafc; }
+        .balance-list-panel { max-height: 420px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -124,11 +121,14 @@ if (msg != null) {
                         <div id="searchResults" class="search-results"></div>
                     </div>
                     <div class="d-flex gap-2">
+                        <button type="button" class="bb bb-outline flex-fill" onclick="openBalanceListModal()">
+                            <i class="fa-solid fa-users me-1"></i>Balance List
+                        </button>
                         <button type="button" id="customerDetailBtn" class="bb bb-primary flex-fill" onclick="showCustomerDetailModal()" disabled>
                             <i class="fa-solid fa-id-card me-1"></i>Detail
                         </button>
                         <button type="button" class="bb bb-outline flex-fill" onclick="clearCustomer()">
-                            <i class="fa-solid fa-rotate-left me-1"></i>Clear Selection
+                            <i class="fa-solid fa-rotate-left me-1"></i>Clear
                         </button>
                     </div>
                 </div>
@@ -141,12 +141,19 @@ if (msg != null) {
                     <h6 class="mb-0"><i class="fa-solid fa-wallet me-2"></i>Customer Account</h6>
                 </div>
                 <div class="card-body account-card-body">
-                    <div class="balance-card advance" onclick="openAdvanceModal()" title="Click to add advance">
+                    <div class="balance-card advance">
                         <div>
-                            <div class="balance-label">Advance Balance</div>
+                            <div class="balance-label">Purchase balance to pay</div>
                             <div class="balance-value" id="advanceBalance">0.0000</div>
                         </div>
-                        <div class="balance-hint"><i class="fa-solid fa-hand-pointer me-1"></i>Click to add advance</div>
+                        <div class="advance-actions">
+                            <button type="button" class="btn btn-light btn-sm" onclick="openAdvanceModal()">
+                                <i class="fa-solid fa-plus me-1"></i>Add
+                            </button>
+                            <button type="button" class="btn btn-light btn-sm" id="payAdvanceBtn" onclick="openPayAdvanceModal()" disabled>
+                                <i class="fa-solid fa-money-bill-wave me-1"></i>Pay
+                            </button>
+                        </div>
                     </div>
                     <div class="balance-card due">
                         <div>
@@ -198,6 +205,57 @@ if (msg != null) {
     </div>
 </div>
 
+<div class="modal fade" id="balanceListModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header mst-card-header">
+                <h6 class="modal-title mb-0"><i class="fa-solid fa-users me-2"></i>Customers with Balance</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="row g-2 mb-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Filter</label>
+                        <select id="balanceListFilter" class="form-select fg-inp">
+                            <option value="all">All (Due or Purchase Balance)</option>
+                            <option value="advance">Purchase Balance only</option>
+                            <option value="due">Due only</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold">Search Name / Phone</label>
+                        <input type="text" id="balanceListKeyword" class="form-control fg-inp" placeholder="Type to filter..." autocomplete="off">
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" class="bb bb-primary w-100" onclick="loadBalanceCustomers()">
+                            <i class="fa-solid fa-filter me-1"></i>Apply
+                        </button>
+                    </div>
+                </div>
+                <div class="balance-list-panel">
+                    <table class="table mst-table table-hover mb-0 balance-list-table">
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Phone</th>
+                                <th class="text-end">Purchase Balance</th>
+                                <th class="text-end">Due</th>
+                            </tr>
+                        </thead>
+                        <tbody id="balanceListBody">
+                            <tr><td colspan="4" class="text-center py-4 text-muted">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <small class="text-muted" id="balanceListCount">0 customers</small>
+                    <button type="button" class="bb bb-outline" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="customerDetailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -224,7 +282,7 @@ if (msg != null) {
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header mst-card-header">
-                <h6 class="modal-title mb-0"><i class="fa-solid fa-hand-holding-dollar me-2"></i>Add Advance</h6>
+                <h6 class="modal-title mb-0"><i class="fa-solid fa-hand-holding-dollar me-2"></i>Add Purchase Balance</h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-3">
@@ -251,7 +309,50 @@ if (msg != null) {
                     </div>
                     <div class="d-flex gap-2 justify-content-end">
                         <button type="button" class="bb bb-outline" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="bb bb-primary">Add Advance</button>
+                        <button type="submit" class="bb bb-primary">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="payAdvanceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header mst-card-header">
+                <h6 class="modal-title mb-0"><i class="fa-solid fa-money-bill-wave me-2"></i>Pay Purchase Balance</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <form action="<%=request.getContextPath()%>/customer/enquiry/payAdvance.jsp" method="post">
+                    <input type="hidden" name="customerId" class="formCustomerId">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Current Purchase Balance</label>
+                        <input type="text" id="currentAdvanceDisplay" class="form-control fg-inp" disabled>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Pay Amount</label>
+                        <input type="number" step="0.0001" min="0.0001" name="amount" id="payAdvanceAmount" class="form-control fg-inp" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Payment Method</label>
+                        <select name="paymentId" class="form-select fg-inp" required>
+                            <option value="">Select payment method</option>
+                            <% for (int i = 0; i < paymentMethods.size(); i++) {
+                                Vector pm = (Vector) paymentMethods.get(i);
+                            %>
+                            <option value="<%= pm.elementAt(0) %>"><%= pm.elementAt(1) %></option>
+                            <% } %>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Notes</label>
+                        <textarea name="notes" class="form-control fg-inp" rows="2" placeholder="Optional"></textarea>
+                    </div>
+                    <div class="d-flex gap-2 justify-content-end">
+                        <button type="button" class="bb bb-outline" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="bb bb-primary">Pay</button>
                     </div>
                 </form>
             </div>
@@ -347,10 +448,89 @@ if (msg != null) {
     const searchResults = document.getElementById('searchResults');
     let searchTimer = null;
     let currentDueAmount = 0;
+    let currentAdvanceAmount = 0;
+    let balanceListTimer = null;
+    let balanceListModalInstance = null;
+
+    function openBalanceListModal() {
+        if (!balanceListModalInstance) {
+            balanceListModalInstance = new bootstrap.Modal(document.getElementById('balanceListModal'));
+        }
+        document.getElementById('balanceListFilter').value = 'all';
+        document.getElementById('balanceListKeyword').value = '';
+        balanceListModalInstance.show();
+        loadBalanceCustomers();
+    }
+
+    function loadBalanceCustomers() {
+        const filterType = document.getElementById('balanceListFilter').value;
+        const keyword = document.getElementById('balanceListKeyword').value.trim();
+        const tbody = document.getElementById('balanceListBody');
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Loading...</td></tr>';
+
+        const url = contextPath + '/customer/enquiry/listBalanceCustomers.jsp'
+            + '?filterType=' + encodeURIComponent(filterType)
+            + '&keyword=' + encodeURIComponent(keyword);
+
+        fetch(url)
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                tbody.innerHTML = '';
+                const list = (data && data.customers) ? data.customers : [];
+                document.getElementById('balanceListCount').textContent = list.length + ' customer' + (list.length === 1 ? '' : 's');
+
+                if (!data.success) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger">'
+                        + (data.message || 'Unable to load') + '</td></tr>';
+                    return;
+                }
+
+                if (list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">No customers found</td></tr>';
+                    return;
+                }
+
+                list.forEach(function(item) {
+                    const tr = document.createElement('tr');
+                    const phoneText = item.phone ? item.phone : '-';
+                    tr.innerHTML =
+                        '<td class="fw-semibold">' + escapeHtml(item.name || '-') + '</td>' +
+                        '<td>' + escapeHtml(phoneText) + '</td>' +
+                        '<td class="text-end text-success">' + (item.advance || '0') + '</td>' +
+                        '<td class="text-end text-danger">' + (item.due || '0') + '</td>';
+                    tr.addEventListener('click', function() {
+                        if (balanceListModalInstance) balanceListModalInstance.hide();
+                        selectCustomer(item.id, (item.name || '') + ' - ' + (item.phone ? item.phone : 'No phone'));
+                    });
+                    tbody.appendChild(tr);
+                });
+            })
+            .catch(function(err) {
+                console.error(err);
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger">Unable to load customers</td></tr>';
+                document.getElementById('balanceListCount').textContent = '0 customers';
+            });
+    }
+
+    function escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
 
     function openAdvanceModal() {
         if (!document.getElementById('selectedCustomerId').value) return;
         new bootstrap.Modal(document.getElementById('advanceModal')).show();
+    }
+
+    function openPayAdvanceModal() {
+        if (!document.getElementById('selectedCustomerId').value || currentAdvanceAmount <= 0) return;
+        document.getElementById('currentAdvanceDisplay').value = currentAdvanceAmount.toFixed(4);
+        document.getElementById('payAdvanceAmount').max = currentAdvanceAmount;
+        document.getElementById('payAdvanceAmount').value = '';
+        new bootstrap.Modal(document.getElementById('payAdvanceModal')).show();
     }
 
     function openAddDueModal() {
@@ -378,7 +558,7 @@ if (msg != null) {
         entries.forEach(function(entry) {
             let badgeClass = 'entry-badge-collection';
             const typeText = (entry.type || '').toLowerCase();
-            if (typeText === 'advance') badgeClass = 'entry-badge-advance';
+            if (typeText === 'advance' || typeText.indexOf('purchase') >= 0) badgeClass = 'entry-badge-advance';
             else if (typeText === 'due') badgeClass = 'entry-badge-due';
 
             const tr = document.createElement('tr');
@@ -430,6 +610,19 @@ if (msg != null) {
         }, 250);
     });
 
+    document.getElementById('balanceListFilter').addEventListener('change', loadBalanceCustomers);
+    document.getElementById('balanceListKeyword').addEventListener('input', function() {
+        clearTimeout(balanceListTimer);
+        balanceListTimer = setTimeout(loadBalanceCustomers, 300);
+    });
+    document.getElementById('balanceListKeyword').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            clearTimeout(balanceListTimer);
+            loadBalanceCustomers();
+        }
+    });
+
     document.addEventListener('click', function(e) {
         if (!searchResults.contains(e.target) && e.target !== searchInput) {
             searchResults.style.display = 'none';
@@ -465,8 +658,9 @@ if (msg != null) {
                 searchInput.value = data.name + ' - ' + (data.phone ? data.phone : 'No phone');
 
                 currentDueAmount = parseFloat(data.due || '0');
-                const collectDueBtn = document.getElementById('collectDueBtn');
-                collectDueBtn.disabled = currentDueAmount <= 0;
+                currentAdvanceAmount = parseFloat(data.advance || '0');
+                document.getElementById('collectDueBtn').disabled = currentDueAmount <= 0;
+                document.getElementById('payAdvanceBtn').disabled = currentAdvanceAmount <= 0;
 
                 renderEntries(data.entries || []);
                 document.getElementById('customerAccountSection').style.display = 'block';
@@ -500,6 +694,7 @@ if (msg != null) {
         document.getElementById('detailNotes').textContent = '-';
         document.getElementById('customerDetailBtn').disabled = true;
         currentDueAmount = 0;
+        currentAdvanceAmount = 0;
         renderEntries([]);
     }
 

@@ -18,6 +18,10 @@ public class exchangeBean {
     private static final int ADJUST_TYPE_ADD = 1;
     private static final int ADJUST_TYPE_REMOVE = 2;
     private static final int BILL_TYPE_EXCHANGE = 4;
+    private static final int TRANSFER_TYPE_GIVE = 1;
+    private static final int TRANSFER_TYPE_GET = 2;
+    private static final int TRANSFER_STATUS_OPEN = 0;
+    private static final int TRANSFER_STATUS_RETURNED = 1;
 
     public exchangeBean() {
     }
@@ -125,7 +129,7 @@ public class exchangeBean {
         ResultSet rs = null;
         try {
             pt = con.prepareStatement(
-                "SELECT advance, due FROM ce_customer_account WHERE customer_id = ?"
+                "SELECT advance, due FROM ce_customer_account WHERE customer_id = ? FOR UPDATE"
             );
             pt.setInt(1, customerId);
             rs = pt.executeQuery();
@@ -140,6 +144,64 @@ public class exchangeBean {
             if (rs != null) try { rs.close(); } catch (Exception e) {}
             if (pt != null) try { pt.close(); } catch (Exception e) {}
         }
+    }
+
+    private void ensureCustomerAccount(Connection con, int customerId) throws Exception {
+        PreparedStatement pt = null;
+        try {
+            pt = con.prepareStatement(
+                "INSERT IGNORE INTO ce_customer_account (customer_id, advance, due) VALUES (?, 0, 0)"
+            );
+            pt.setInt(1, customerId);
+            pt.executeUpdate();
+        } finally {
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+        }
+    }
+
+    /**
+     * Applies unpaid exchange balance to ce_customer_account.
+     * Sale unpaid → due (customer owes shop).
+     * Purchase unpaid → advance (shop owes customer).
+     * balances array is filled as [beforeAdvance, afterAdvance, beforeDue, afterDue].
+     */
+    private void applyExchangeCustomerBalance(Connection con, int customerId, int exchangeType,
+            BigDecimal balanceAmt, BigDecimal[] balances) throws Exception {
+        ensureCustomerAccount(con, customerId);
+
+        BigDecimal[] current = new BigDecimal[2];
+        loadAccountBalances(con, customerId, current);
+        BigDecimal beforeAdvance = current[0];
+        BigDecimal beforeDue = current[1];
+        BigDecimal afterAdvance = beforeAdvance;
+        BigDecimal afterDue = beforeDue;
+
+        if (balanceAmt != null && balanceAmt.compareTo(BigDecimal.ZERO) > 0) {
+            PreparedStatement pt = null;
+            try {
+                if (exchangeType == EXCHANGE_TYPE_SALE) {
+                    afterDue = beforeDue.add(balanceAmt);
+                    pt = con.prepareStatement(
+                        "UPDATE ce_customer_account SET due = due + ? WHERE customer_id = ?"
+                    );
+                } else {
+                    afterAdvance = beforeAdvance.add(balanceAmt);
+                    pt = con.prepareStatement(
+                        "UPDATE ce_customer_account SET advance = advance + ? WHERE customer_id = ?"
+                    );
+                }
+                pt.setBigDecimal(1, balanceAmt);
+                pt.setInt(2, customerId);
+                pt.executeUpdate();
+            } finally {
+                if (pt != null) try { pt.close(); } catch (Exception e) {}
+            }
+        }
+
+        balances[0] = beforeAdvance;
+        balances[1] = afterAdvance;
+        balances[2] = beforeDue;
+        balances[3] = afterDue;
     }
 
     private int getPaymentMethodIsCash(Connection con, int paymentId) throws Exception {
@@ -347,7 +409,30 @@ public class exchangeBean {
         }
 
         upsertStock(con, currencyId, afterQty);
-        insertStockTransaction(con, Integer.valueOf(exchangeId), null, currencyId, stockTxnType,
+        insertStockTransaction(con, Integer.valueOf(exchangeId), null, null, currencyId, stockTxnType,
+            quantity, beforeQty, afterQty);
+    }
+
+    private void applyTransferStockMovement(Connection con, int transferId, int currencyId,
+            boolean increase, BigDecimal quantity) throws Exception {
+        BigDecimal beforeQty = loadStockForUpdate(con, currencyId);
+        BigDecimal afterQty;
+        int stockTxnType;
+
+        if (increase) {
+            afterQty = beforeQty.add(quantity);
+            stockTxnType = STOCK_TXN_IN;
+        } else {
+            if (beforeQty.compareTo(quantity) < 0) {
+                String code = getCurrencyCode(con, currencyId);
+                throw new Exception("Insufficient " + code + " stock. Available: " + beforeQty.toPlainString());
+            }
+            afterQty = beforeQty.subtract(quantity);
+            stockTxnType = STOCK_TXN_OUT;
+        }
+
+        upsertStock(con, currencyId, afterQty);
+        insertStockTransaction(con, null, null, Integer.valueOf(transferId), currencyId, stockTxnType,
             quantity, beforeQty, afterQty);
     }
 
@@ -366,14 +451,14 @@ public class exchangeBean {
         }
     }
 
-    private void insertStockTransaction(Connection con, Integer exchangeId, Integer adjustmentId,
+    private void insertStockTransaction(Connection con, Integer exchangeId, Integer adjustmentId, Integer transferId,
             int currencyId, int txnType, BigDecimal quantity, BigDecimal beforeQty, BigDecimal afterQty) throws Exception {
         PreparedStatement pt = null;
         try {
             pt = con.prepareStatement(
                 "INSERT INTO ce_currency_stock_transaction " +
-                "(exchange_id, adjustment_id, currency_id, txn_type, quantity, before_qty, after_qty) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "(exchange_id, adjustment_id, transfer_id, currency_id, txn_type, quantity, before_qty, after_qty) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             );
             if (exchangeId != null) {
                 pt.setInt(1, exchangeId.intValue());
@@ -385,11 +470,16 @@ public class exchangeBean {
             } else {
                 pt.setNull(2, java.sql.Types.INTEGER);
             }
-            pt.setInt(3, currencyId);
-            pt.setInt(4, txnType);
-            pt.setBigDecimal(5, quantity);
-            pt.setBigDecimal(6, beforeQty);
-            pt.setBigDecimal(7, afterQty);
+            if (transferId != null) {
+                pt.setInt(3, transferId.intValue());
+            } else {
+                pt.setNull(3, java.sql.Types.INTEGER);
+            }
+            pt.setInt(4, currencyId);
+            pt.setInt(5, txnType);
+            pt.setBigDecimal(6, quantity);
+            pt.setBigDecimal(7, beforeQty);
+            pt.setBigDecimal(8, afterQty);
             pt.executeUpdate();
         } finally {
             if (pt != null) try { pt.close(); } catch (Exception e) {}
@@ -424,7 +514,7 @@ public class exchangeBean {
 
     public int saveExchange(int customerId, int exchangeType, String exchangeDate, int currencyId,
             BigDecimal amount, int counterCurrencyId, BigDecimal counterAmount,
-            int paymentId, String notes, int userId) throws Exception {
+            BigDecimal paid, int paymentId, String notes, int userId) throws Exception {
         if (customerId <= 0) {
             throw new Exception("Customer is required");
         }
@@ -447,6 +537,15 @@ public class exchangeBean {
             throw new Exception("Payment method is required");
         }
 
+        BigDecimal paidAmount = safeAmount(paid);
+        if (paidAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new Exception("Paid amount cannot be negative");
+        }
+        if (paidAmount.compareTo(counterAmount) > 0) {
+            throw new Exception("Paid amount cannot exceed counter amount");
+        }
+        BigDecimal balanceAmount = counterAmount.subtract(paidAmount).setScale(4, java.math.RoundingMode.HALF_UP);
+
         Connection con = null;
         PreparedStatement pt = null;
         try {
@@ -468,12 +567,12 @@ public class exchangeBean {
             validateExchangeRate(con, currencyId, counterCurrencyId,
                 counterAmount.divide(amount, 4, java.math.RoundingMode.HALF_UP),
                 getCurrencyCode(con, currencyId), counterCode);
-            BigDecimal[] cashBank = resolveCashBankAmounts(con, paymentId, counterAmount);
+            BigDecimal[] cashBank = resolveCashBankAmounts(con, paymentId, paidAmount);
 
             pt = con.prepareStatement(
                 "INSERT INTO ce_currency_exchange " +
-                "(customer_id, exchange_type, exchange_date, currency_id, amount, counter_currency_id, counter_amount, payment_id, notes, uid, is_cancelled) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+                "(customer_id, exchange_type, exchange_date, currency_id, amount, counter_currency_id, counter_amount, paid, balance, payment_id, notes, uid, is_cancelled) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
                 Statement.RETURN_GENERATED_KEYS
             );
             pt.setInt(1, customerId);
@@ -483,13 +582,15 @@ public class exchangeBean {
             pt.setBigDecimal(5, amount);
             pt.setInt(6, counterCurrencyId);
             pt.setBigDecimal(7, counterAmount);
-            pt.setInt(8, paymentId);
+            pt.setBigDecimal(8, paidAmount);
+            pt.setBigDecimal(9, balanceAmount);
+            pt.setInt(10, paymentId);
             if (notes != null && notes.trim().length() > 0) {
-                pt.setString(9, notes.trim());
+                pt.setString(11, notes.trim());
             } else {
-                pt.setNull(9, java.sql.Types.LONGVARCHAR);
+                pt.setNull(11, java.sql.Types.LONGVARCHAR);
             }
-            pt.setInt(10, userId);
+            pt.setInt(12, userId);
             pt.executeUpdate();
             int exchangeId = insertGeneratedId(pt);
             pt.close();
@@ -497,20 +598,22 @@ public class exchangeBean {
 
             if (exchangeType == EXCHANGE_TYPE_PURCHASE) {
                 applyStockMovement(con, exchangeId, currencyId, true, amount);
-                if (isCash == 1) {
-                    applyStockMovement(con, exchangeId, counterCurrencyId, false, counterAmount);
+                if (isCash == 1 && paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+                    applyStockMovement(con, exchangeId, counterCurrencyId, false, paidAmount);
                 }
             } else {
                 applyStockMovement(con, exchangeId, currencyId, false, amount);
-                if (isCash == 1) {
-                    applyStockMovement(con, exchangeId, counterCurrencyId, true, counterAmount);
+                if (isCash == 1 && paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+                    applyStockMovement(con, exchangeId, counterCurrencyId, true, paidAmount);
                 }
             }
 
-            BigDecimal[] balances = new BigDecimal[2];
-            loadAccountBalances(con, customerId, balances);
-            insertBillLedger(con, customerId, exchangeId, balances[0], balances[0],
-                balances[1], balances[1], cashBank[0], cashBank[1], paymentId);
+            BigDecimal[] accountBalances = new BigDecimal[4];
+            applyExchangeCustomerBalance(con, customerId, exchangeType, balanceAmount, accountBalances);
+            insertBillLedger(con, customerId, exchangeId,
+                accountBalances[0], accountBalances[1],
+                accountBalances[2], accountBalances[3],
+                cashBank[0], cashBank[1], paymentId);
 
             con.commit();
             return exchangeId;
@@ -574,7 +677,7 @@ public class exchangeBean {
             pt = null;
 
             upsertStock(con, currencyId, afterQty);
-            insertStockTransaction(con, null, Integer.valueOf(adjustmentId), currencyId, stockTxnType,
+            insertStockTransaction(con, null, Integer.valueOf(adjustmentId), null, currencyId, stockTxnType,
                 quantity, beforeQty, afterQty);
 
             con.commit();
@@ -770,6 +873,7 @@ public class exchangeBean {
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 2 THEN 'Exchange - Sale' " +
                 "      WHEN l.bill_type = 4 THEN 'Exchange Bill' " +
                 "      WHEN l.bill_type = 5 THEN 'Expense' " +
+                "      WHEN l.bill_type = 6 THEN 'Purchase Balance Pay' " +
                 "      ELSE bt.name " +
                 "    END AS description, " +
                 "    CASE " +
@@ -778,7 +882,7 @@ public class exchangeBean {
                 "    END AS cash_in, " +
                 "    CASE " +
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 1 THEN (l.is_cash + l.is_bank) " +
-                "      WHEN l.bill_type = 5 THEN (l.is_cash + l.is_bank) " +
+                "      WHEN l.bill_type IN (5, 6) THEN (l.is_cash + l.is_bank) " +
                 "      ELSE 0 " +
                 "    END AS cash_out " +
                 "  FROM ce_bill_ledger l " +
@@ -786,7 +890,7 @@ public class exchangeBean {
                 "  LEFT JOIN ce_currency_exchange e ON l.bill_type = 4 AND e.id = l.bill_id AND e.is_cancelled = 0 " +
                 "  WHERE DATE(l.created_at) BETWEEN ? AND ? AND (l.is_cash > 0 OR l.is_bank > 0) " +
                 ") t GROUP BY description " +
-                "ORDER BY FIELD(description, 'Advance', 'Due', 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense')"
+                "ORDER BY FIELD(description, 'Advance', 'Due', 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense', 'Purchase Balance Pay')"
             );
             pt.setString(1, fromDate);
             pt.setString(2, toDate);
@@ -825,6 +929,7 @@ public class exchangeBean {
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 2 THEN 'Exchange - Sale' " +
                 "      WHEN l.bill_type = 4 THEN 'Exchange Bill' " +
                 "      WHEN l.bill_type = 5 THEN 'Expense' " +
+                "      WHEN l.bill_type = 6 THEN 'Purchase Balance Pay' " +
                 "      ELSE bt.name " +
                 "    END AS description, " +
                 "    CASE " +
@@ -833,7 +938,7 @@ public class exchangeBean {
                 "    END AS cash_in, " +
                 "    CASE " +
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 1 THEN l." + column + " " +
-                "      WHEN l.bill_type = 5 THEN l." + column + " " +
+                "      WHEN l.bill_type IN (5, 6) THEN l." + column + " " +
                 "      ELSE 0 " +
                 "    END AS cash_out " +
                 "  FROM ce_bill_ledger l " +
@@ -841,7 +946,7 @@ public class exchangeBean {
                 "  LEFT JOIN ce_currency_exchange e ON l.bill_type = 4 AND e.id = l.bill_id AND e.is_cancelled = 0 " +
                 "  WHERE DATE(l.created_at) BETWEEN ? AND ? AND l." + column + " > 0 " +
                 ") t GROUP BY description " +
-                "ORDER BY FIELD(description, 'Advance', 'Due', 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense')"
+                "ORDER BY FIELD(description, 'Advance', 'Due', 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense', 'Purchase Balance Pay')"
             );
             pt.setString(1, fromDate);
             pt.setString(2, toDate);
@@ -871,7 +976,7 @@ public class exchangeBean {
             String column = cashColumn ? "is_cash" : "is_bank";
             pt = con.prepareStatement(
                 "SELECT l.created_at, COALESCE(cu.name, '-') AS customer_name, l.bill_type AS bill_type_id, " +
-                "CASE l.bill_type WHEN 1 THEN 'Advance' WHEN 2 THEN 'Due' WHEN 3 THEN 'Due Collection' WHEN 4 THEN 'Exchange Bill' WHEN 5 THEN 'Expense' ELSE bt.name END AS bill_type, " +
+                "CASE l.bill_type WHEN 1 THEN 'Advance' WHEN 2 THEN 'Due' WHEN 3 THEN 'Due Collection' WHEN 4 THEN 'Exchange Bill' WHEN 5 THEN 'Expense' WHEN 6 THEN 'Purchase Balance Pay' ELSE bt.name END AS bill_type, " +
                 "l." + column + " AS amount, pm.name AS payment_method, l.bill_id " +
                 "FROM ce_bill_ledger l " +
                 "LEFT JOIN ce_customer cu ON cu.id = l.customer_id " +
@@ -911,7 +1016,7 @@ public class exchangeBean {
             con = util.DBConnectionManager.getConnectionFromPool();
             pt = con.prepareStatement(
                 "SELECT l.created_at, COALESCE(cu.name, '-') AS customer_name, " +
-                "CASE l.bill_type WHEN 1 THEN 'Advance' WHEN 2 THEN 'Due' WHEN 3 THEN 'Due Collection' WHEN 4 THEN 'Exchange Bill' WHEN 5 THEN 'Expense' ELSE bt.name END AS bill_type, " +
+                "CASE l.bill_type WHEN 1 THEN 'Advance' WHEN 2 THEN 'Due' WHEN 3 THEN 'Due Collection' WHEN 4 THEN 'Exchange Bill' WHEN 5 THEN 'Expense' WHEN 6 THEN 'Purchase Balance Pay' ELSE bt.name END AS bill_type, " +
                 "COALESCE(a.amount, d.amount, dc.amount, ex.counter_amount, ex.amount, ee.amount, 0) AS amount, " +
                 "l.advance, l.final_advance, l.due, l.final_due, l.is_cash, l.is_bank, pm.name AS payment_method " +
                 "FROM ce_bill_ledger l " +
@@ -1049,6 +1154,7 @@ public class exchangeBean {
                 "SELECT e.id, e.exchange_date, e.created_at, cu.name AS customer_name, cu.phone_number, " +
                 "CASE e.exchange_type WHEN 1 THEN 'Purchase' WHEN 2 THEN 'Sale' END AS exchange_type, " +
                 "c.currency_code, e.amount, cc.currency_code AS counter_code, e.counter_amount, " +
+                "COALESCE(e.paid, e.counter_amount) AS paid, COALESCE(e.balance, 0) AS balance, " +
                 "pm.name AS payment_method, e.notes, u.user_name " +
                 "FROM ce_currency_exchange e " +
                 "INNER JOIN ce_customer cu ON cu.id = e.customer_id " +
@@ -1081,6 +1187,8 @@ public class exchangeBean {
                 Vector row = new Vector();
                 BigDecimal amount = safeAmount(rs.getBigDecimal("amount"));
                 BigDecimal counterAmount = safeAmount(rs.getBigDecimal("counter_amount"));
+                BigDecimal paidAmt = safeAmount(rs.getBigDecimal("paid"));
+                BigDecimal balanceAmt = safeAmount(rs.getBigDecimal("balance"));
                 BigDecimal rate = BigDecimal.ZERO;
                 if (amount.compareTo(BigDecimal.ZERO) > 0) {
                     rate = counterAmount.divide(amount, 4, java.math.RoundingMode.HALF_UP);
@@ -1096,6 +1204,8 @@ public class exchangeBean {
                 row.addElement(rs.getString("counter_code"));
                 row.addElement(counterAmount);
                 row.addElement(rate);
+                row.addElement(paidAmt);
+                row.addElement(balanceAmt);
                 row.addElement(rs.getString("payment_method"));
                 row.addElement(rs.getString("notes"));
                 row.addElement(rs.getString("user_name"));
@@ -1111,5 +1221,236 @@ public class exchangeBean {
 
     public Vector getExchangeBillsReport(String fromDate, String toDate) throws Exception {
         return getCurrencyExchangeReport(fromDate, toDate, 0, 0);
+    }
+
+    public int saveCurrencyTransfer(int customerId, int currencyId, int transferType, String transferDate,
+            BigDecimal quantity, String notes, int userId) throws Exception {
+        if (customerId <= 0) {
+            throw new Exception("Customer is required");
+        }
+        if (currencyId <= 0) {
+            throw new Exception("Currency is required");
+        }
+        if (transferType != TRANSFER_TYPE_GIVE && transferType != TRANSFER_TYPE_GET) {
+            throw new Exception("Invalid transfer type");
+        }
+        if (transferDate == null || transferDate.trim().isEmpty()) {
+            throw new Exception("Date is required");
+        }
+        if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new Exception("Quantity must be greater than zero");
+        }
+
+        Connection con = null;
+        PreparedStatement pt = null;
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            con.setAutoCommit(false);
+
+            pt = con.prepareStatement(
+                "INSERT INTO ce_currency_transfer " +
+                "(customer_id, currency_id, transfer_type, quantity, transfer_date, notes, status, uid) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                Statement.RETURN_GENERATED_KEYS
+            );
+            pt.setInt(1, customerId);
+            pt.setInt(2, currencyId);
+            pt.setInt(3, transferType);
+            pt.setBigDecimal(4, quantity);
+            pt.setString(5, transferDate.trim());
+            if (notes != null && notes.trim().length() > 0) {
+                pt.setString(6, notes.trim());
+            } else {
+                pt.setNull(6, java.sql.Types.LONGVARCHAR);
+            }
+            pt.setInt(7, TRANSFER_STATUS_OPEN);
+            pt.setInt(8, userId);
+            pt.executeUpdate();
+            int transferId = insertGeneratedId(pt);
+            pt.close();
+            pt = null;
+
+            if (transferType == TRANSFER_TYPE_GIVE) {
+                applyTransferStockMovement(con, transferId, currencyId, false, quantity);
+            } else {
+                applyTransferStockMovement(con, transferId, currencyId, true, quantity);
+            }
+
+            con.commit();
+            return transferId;
+        } catch (Exception e) {
+            if (con != null) con.rollback();
+            throw e;
+        } finally {
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
+    }
+
+    public void returnCurrencyTransfer(int transferId, String returnDate, int userId) throws Exception {
+        if (transferId <= 0) {
+            throw new Exception("Invalid transfer");
+        }
+        if (returnDate == null || returnDate.trim().isEmpty()) {
+            throw new Exception("Return date is required");
+        }
+
+        Connection con = null;
+        PreparedStatement pt = null;
+        ResultSet rs = null;
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            con.setAutoCommit(false);
+
+            pt = con.prepareStatement(
+                "SELECT customer_id, currency_id, transfer_type, quantity, status " +
+                "FROM ce_currency_transfer WHERE id = ? FOR UPDATE"
+            );
+            pt.setInt(1, transferId);
+            rs = pt.executeQuery();
+            if (!rs.next()) {
+                throw new Exception("Transfer not found");
+            }
+            int status = rs.getInt("status");
+            if (status != TRANSFER_STATUS_OPEN) {
+                throw new Exception("This transfer is already returned");
+            }
+            int transferType = rs.getInt("transfer_type");
+            int currencyId = rs.getInt("currency_id");
+            BigDecimal quantity = safeAmount(rs.getBigDecimal("quantity"));
+            rs.close();
+            pt.close();
+            pt = null;
+
+            if (transferType == TRANSFER_TYPE_GIVE) {
+                applyTransferStockMovement(con, transferId, currencyId, true, quantity);
+            } else {
+                applyTransferStockMovement(con, transferId, currencyId, false, quantity);
+            }
+
+            pt = con.prepareStatement(
+                "UPDATE ce_currency_transfer SET status = ?, return_date = ? WHERE id = ?"
+            );
+            pt.setInt(1, TRANSFER_STATUS_RETURNED);
+            pt.setString(2, returnDate.trim());
+            pt.setInt(3, transferId);
+            pt.executeUpdate();
+
+            con.commit();
+        } catch (Exception e) {
+            if (con != null) con.rollback();
+            throw e;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
+    }
+
+    public Vector getCurrencyTransferList(int transferTypeFilter) throws Exception {
+        Connection con = null;
+        PreparedStatement pt = null;
+        ResultSet rs = null;
+        Vector list = new Vector();
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            StringBuilder sql = new StringBuilder(
+                "SELECT t.id, t.transfer_date, t.created_at, cu.name AS customer_name, cu.phone_number, " +
+                "CASE t.transfer_type WHEN 1 THEN 'Give' WHEN 2 THEN 'Get' END AS transfer_type, " +
+                "c.currency_code, t.quantity, t.notes, t.status, t.return_date, u.user_name " +
+                "FROM ce_currency_transfer t " +
+                "INNER JOIN ce_customer cu ON cu.id = t.customer_id " +
+                "INNER JOIN ce_currency c ON c.id = t.currency_id " +
+                "LEFT JOIN users u ON u.id = t.uid " +
+                "WHERE 1=1 "
+            );
+            if (transferTypeFilter == TRANSFER_TYPE_GIVE || transferTypeFilter == TRANSFER_TYPE_GET) {
+                sql.append("AND t.transfer_type = ? ");
+            }
+            sql.append("ORDER BY t.transfer_date DESC, t.id DESC");
+
+            pt = con.prepareStatement(sql.toString());
+            if (transferTypeFilter == TRANSFER_TYPE_GIVE || transferTypeFilter == TRANSFER_TYPE_GET) {
+                pt.setInt(1, transferTypeFilter);
+            }
+            rs = pt.executeQuery();
+            while (rs.next()) {
+                Vector row = new Vector();
+                row.addElement(rs.getInt("id"));
+                row.addElement(rs.getDate("transfer_date"));
+                row.addElement(rs.getTimestamp("created_at"));
+                row.addElement(rs.getString("customer_name"));
+                row.addElement(rs.getString("phone_number"));
+                row.addElement(rs.getString("transfer_type"));
+                row.addElement(rs.getString("currency_code"));
+                row.addElement(safeAmount(rs.getBigDecimal("quantity")));
+                row.addElement(rs.getString("notes"));
+                row.addElement(rs.getInt("status"));
+                row.addElement(rs.getDate("return_date"));
+                row.addElement(rs.getString("user_name"));
+                list.addElement(row);
+            }
+            return list;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
+    }
+
+    public Vector getCurrencyTransferReport(String fromDate, String toDate, int customerId) throws Exception {
+        Connection con = null;
+        PreparedStatement pt = null;
+        ResultSet rs = null;
+        Vector list = new Vector();
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            StringBuilder sql = new StringBuilder(
+                "SELECT t.id, t.transfer_date, t.created_at, cu.name AS customer_name, cu.phone_number, " +
+                "CASE t.transfer_type WHEN 1 THEN 'Give' WHEN 2 THEN 'Get' END AS transfer_type, " +
+                "c.currency_code, t.quantity, t.notes, " +
+                "CASE t.status WHEN 0 THEN 'Open' WHEN 1 THEN 'Returned' END AS status_label, " +
+                "t.return_date, u.user_name " +
+                "FROM ce_currency_transfer t " +
+                "INNER JOIN ce_customer cu ON cu.id = t.customer_id " +
+                "INNER JOIN ce_currency c ON c.id = t.currency_id " +
+                "LEFT JOIN users u ON u.id = t.uid " +
+                "WHERE t.transfer_date BETWEEN ? AND ? "
+            );
+            if (customerId > 0) {
+                sql.append("AND t.customer_id = ? ");
+            }
+            sql.append("ORDER BY t.transfer_date DESC, t.id DESC");
+
+            pt = con.prepareStatement(sql.toString());
+            int param = 1;
+            pt.setString(param++, fromDate);
+            pt.setString(param++, toDate);
+            if (customerId > 0) {
+                pt.setInt(param++, customerId);
+            }
+            rs = pt.executeQuery();
+            while (rs.next()) {
+                Vector row = new Vector();
+                row.addElement(rs.getInt("id"));
+                row.addElement(rs.getDate("transfer_date"));
+                row.addElement(rs.getTimestamp("created_at"));
+                row.addElement(rs.getString("customer_name"));
+                row.addElement(rs.getString("phone_number"));
+                row.addElement(rs.getString("transfer_type"));
+                row.addElement(rs.getString("currency_code"));
+                row.addElement(safeAmount(rs.getBigDecimal("quantity")));
+                row.addElement(rs.getString("notes"));
+                row.addElement(rs.getString("status_label"));
+                row.addElement(rs.getDate("return_date"));
+                row.addElement(rs.getString("user_name"));
+                list.addElement(row);
+            }
+            return list;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
     }
 }

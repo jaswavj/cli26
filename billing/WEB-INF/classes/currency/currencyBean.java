@@ -307,21 +307,34 @@ public class currencyBean {
             return "-";
         }
 
+        int baseId = 0;
+        try {
+            baseId = getBaseCurrencyId();
+        } catch (Exception e) {
+            baseId = 0;
+        }
+
         StringBuilder sb = new StringBuilder();
+        int shown = 0;
         for (int i = 0; i < limits.size(); i++) {
             Vector row = (Vector) limits.get(i);
+            int refId = Integer.parseInt(row.elementAt(0).toString());
+            if (baseId > 0 && refId != baseId) {
+                continue;
+            }
             String refCode = row.elementAt(1).toString();
             BigDecimal minValue = (BigDecimal) row.elementAt(3);
             BigDecimal maxValue = (BigDecimal) row.elementAt(4);
-            if (i > 0) {
+            if (shown > 0) {
                 sb.append("<br>");
             }
             sb.append(refCode).append(": ")
               .append(minValue != null ? minValue.toPlainString() : "0")
               .append(" - ")
               .append(maxValue != null ? maxValue.toPlainString() : "0");
+            shown++;
         }
-        return sb.toString();
+        return shown > 0 ? sb.toString() : "-";
     }
 
     public int checkCurrencyCodeExists(String code, int excludeId) throws Exception {
@@ -533,6 +546,66 @@ public class currencyBean {
         }
     }
 
+    /**
+     * Customers with outstanding advance and/or due.
+     * filterType: all | advance | due
+     * keyword: optional name/phone filter
+     * Returns: id, name, phone, advance, due
+     */
+    public Vector getCustomersWithBalance(String filterType, String keyword) throws Exception {
+        Connection con = null;
+        PreparedStatement pt = null;
+        ResultSet rs = null;
+        Vector list = new Vector();
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            String type = filterType != null ? filterType.trim().toLowerCase() : "all";
+            StringBuilder sql = new StringBuilder(
+                "SELECT c.id, c.name, c.phone_number, a.advance, a.due " +
+                "FROM ce_customer_account a " +
+                "INNER JOIN ce_customer c ON c.id = a.customer_id " +
+                "WHERE c.is_active = 1 "
+            );
+
+            if ("advance".equals(type)) {
+                sql.append("AND a.advance > 0 ");
+            } else if ("due".equals(type)) {
+                sql.append("AND a.due > 0 ");
+            } else {
+                sql.append("AND (a.advance > 0 OR a.due > 0) ");
+            }
+
+            boolean hasKeyword = keyword != null && keyword.trim().length() > 0;
+            if (hasKeyword) {
+                sql.append("AND (c.name LIKE ? OR c.phone_number LIKE ?) ");
+            }
+            sql.append("ORDER BY c.name");
+
+            pt = con.prepareStatement(sql.toString());
+            if (hasKeyword) {
+                String like = "%" + keyword.trim() + "%";
+                pt.setString(1, like);
+                pt.setString(2, like);
+            }
+
+            rs = pt.executeQuery();
+            while (rs.next()) {
+                Vector row = new Vector();
+                row.addElement(rs.getInt("id"));
+                row.addElement(rs.getString("name"));
+                row.addElement(rs.getString("phone_number"));
+                row.addElement(safeAmount(rs.getBigDecimal("advance")));
+                row.addElement(safeAmount(rs.getBigDecimal("due")));
+                list.addElement(row);
+            }
+            return list;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
+    }
+
     public Vector getCustomerById(int id) throws Exception {
         Connection con = null;
         PreparedStatement pt = null;
@@ -684,6 +757,7 @@ public class currencyBean {
     private static final int BILL_TYPE_ADVANCE = 1;
     private static final int BILL_TYPE_DUE = 2;
     private static final int BILL_TYPE_DUE_COLLECTION = 3;
+    private static final int BILL_TYPE_ADVANCE_PAYMENT = 6;
 
     private BigDecimal safeAmount(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
@@ -745,6 +819,136 @@ public class currencyBean {
             cashBank[1] = amount;
         }
         return cashBank;
+    }
+
+    private int getBaseCurrencyId(Connection con) throws Exception {
+        PreparedStatement pt = null;
+        ResultSet rs = null;
+        try {
+            pt = con.prepareStatement(
+                "SELECT id FROM ce_currency WHERE is_base = 1 AND is_active = 1 LIMIT 1"
+            );
+            rs = pt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("id");
+            }
+            return 0;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+        }
+    }
+
+    private String getCurrencyCode(Connection con, int currencyId) throws Exception {
+        PreparedStatement pt = null;
+        ResultSet rs = null;
+        try {
+            pt = con.prepareStatement(
+                "SELECT currency_code FROM ce_currency WHERE id = ?"
+            );
+            pt.setInt(1, currencyId);
+            rs = pt.executeQuery();
+            if (rs.next()) {
+                return rs.getString("currency_code");
+            }
+            return "BASE";
+        } finally {
+            if (rs != null) try { rs.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+        }
+    }
+
+    private BigDecimal loadStockForUpdate(Connection con, int currencyId) throws Exception {
+        PreparedStatement pt = null;
+        ResultSet rs = null;
+        try {
+            pt = con.prepareStatement(
+                "SELECT quantity FROM ce_currency_stock WHERE currency_id = ? FOR UPDATE"
+            );
+            pt.setInt(1, currencyId);
+            rs = pt.executeQuery();
+            if (rs.next()) {
+                return safeAmount(rs.getBigDecimal("quantity"));
+            }
+            return BigDecimal.ZERO;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+        }
+    }
+
+    private void upsertStock(Connection con, int currencyId, BigDecimal newQty) throws Exception {
+        PreparedStatement pt = null;
+        try {
+            pt = con.prepareStatement(
+                "INSERT INTO ce_currency_stock (currency_id, quantity) VALUES (?, ?) " +
+                "ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)"
+            );
+            pt.setInt(1, currencyId);
+            pt.setBigDecimal(2, newQty);
+            pt.executeUpdate();
+        } finally {
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+        }
+    }
+
+    private void insertStockTransaction(Connection con, int currencyId, int txnType,
+            BigDecimal quantity, BigDecimal beforeQty, BigDecimal afterQty) throws Exception {
+        PreparedStatement pt = null;
+        try {
+            pt = con.prepareStatement(
+                "INSERT INTO ce_currency_stock_transaction " +
+                "(exchange_id, adjustment_id, currency_id, txn_type, quantity, before_qty, after_qty) " +
+                "VALUES (NULL, NULL, ?, ?, ?, ?, ?)"
+            );
+            pt.setInt(1, currencyId);
+            pt.setInt(2, txnType);
+            pt.setBigDecimal(3, quantity);
+            pt.setBigDecimal(4, beforeQty);
+            pt.setBigDecimal(5, afterQty);
+            pt.executeUpdate();
+        } finally {
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+        }
+    }
+
+    /**
+     * Adjust base currency stock when payment method is cash.
+     * increase=true  → cash in  (Collect Due)
+     * increase=false → cash out (Pay Purchase Balance)
+     */
+    private void applyBaseCashStockIfNeeded(Connection con, int paymentId, BigDecimal amount,
+            boolean increase) throws Exception {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        if (getPaymentMethodIsCash(con, paymentId) != 1) {
+            return;
+        }
+
+        int baseCurrencyId = getBaseCurrencyId(con);
+        if (baseCurrencyId <= 0) {
+            throw new Exception("Base currency is not configured in Currency Master");
+        }
+
+        BigDecimal beforeQty = loadStockForUpdate(con, baseCurrencyId);
+        BigDecimal afterQty;
+        int stockTxnType;
+
+        if (increase) {
+            afterQty = beforeQty.add(amount);
+            stockTxnType = 1; // stock in
+        } else {
+            if (beforeQty.compareTo(amount) < 0) {
+                String code = getCurrencyCode(con, baseCurrencyId);
+                throw new Exception("Insufficient " + code + " stock. Available: " + beforeQty.toPlainString());
+            }
+            afterQty = beforeQty.subtract(amount);
+            stockTxnType = 2; // stock out
+        }
+
+        upsertStock(con, baseCurrencyId, afterQty);
+        insertStockTransaction(con, baseCurrencyId, stockTxnType, amount, beforeQty, afterQty);
     }
 
     private void loadAccountBalances(Connection con, int customerId, BigDecimal[] balances) throws Exception {
@@ -1005,8 +1209,82 @@ public class currencyBean {
             accPt.close();
             accPt = null;
 
+            // Cash due collection → base currency stock increases
+            applyBaseCashStockIfNeeded(con, paymentId, amount, true);
+
             insertBillLedger(con, customerId, BILL_TYPE_DUE_COLLECTION, billId,
                 beforeAdvance, beforeAdvance, beforeDue, afterDue, cashBank[0], cashBank[1], paymentId);
+
+            con.commit();
+        } catch (Exception e) {
+            if (con != null) con.rollback();
+            throw e;
+        } finally {
+            if (histPt != null) try { histPt.close(); } catch (Exception e) {}
+            if (accPt != null) try { accPt.close(); } catch (Exception e) {}
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
+    }
+
+    public void payAdvance(int customerId, BigDecimal amount, String notes, int paymentId) throws Exception {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new Exception("Pay amount must be greater than zero");
+        }
+        if (paymentId <= 0) {
+            throw new Exception("Payment method is required");
+        }
+
+        Connection con = null;
+        PreparedStatement histPt = null;
+        PreparedStatement accPt = null;
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            con.setAutoCommit(false);
+
+            BigDecimal[] cashBank = resolveCashBankAmounts(con, paymentId, amount);
+
+            BigDecimal[] balances = new BigDecimal[2];
+            loadAccountBalances(con, customerId, balances);
+            BigDecimal beforeAdvance = balances[0];
+            BigDecimal beforeDue = balances[1];
+
+            if (amount.compareTo(beforeAdvance) > 0) {
+                throw new Exception("Pay amount cannot exceed current purchase balance");
+            }
+
+            BigDecimal afterAdvance = beforeAdvance.subtract(amount);
+
+            histPt = con.prepareStatement(
+                "INSERT INTO ce_cus_advance_payment (customer_id, amount, notes, payment_id) VALUES (?, ?, ?, ?)",
+                Statement.RETURN_GENERATED_KEYS
+            );
+            histPt.setInt(1, customerId);
+            histPt.setBigDecimal(2, amount);
+            if (notes != null && notes.trim().length() > 0) {
+                histPt.setString(3, notes.trim());
+            } else {
+                histPt.setNull(3, java.sql.Types.LONGVARCHAR);
+            }
+            histPt.setInt(4, paymentId);
+            histPt.executeUpdate();
+            int billId = insertGeneratedId(histPt);
+            histPt.close();
+            histPt = null;
+
+            accPt = con.prepareStatement(
+                "UPDATE ce_customer_account SET advance = advance - ? WHERE customer_id = ?"
+            );
+            accPt.setBigDecimal(1, amount);
+            accPt.setInt(2, customerId);
+            accPt.executeUpdate();
+            accPt.close();
+            accPt = null;
+
+            // Cash purchase-balance pay → base currency stock decreases
+            applyBaseCashStockIfNeeded(con, paymentId, amount, false);
+
+            insertBillLedger(con, customerId, BILL_TYPE_ADVANCE_PAYMENT, billId,
+                beforeAdvance, afterAdvance, beforeDue, beforeDue, cashBank[0], cashBank[1], paymentId);
 
             con.commit();
         } catch (Exception e) {
@@ -1028,9 +1306,14 @@ public class currencyBean {
             con = util.DBConnectionManager.getConnectionFromPool();
             pt = con.prepareStatement(
                 "SELECT " +
-                "CASE l.bill_type WHEN 1 THEN 'Advance' WHEN 2 THEN 'Due' WHEN 3 THEN 'Due Collection' ELSE bt.name END AS entry_type, " +
-                "COALESCE(a.amount, d.amount, c.amount) AS amount, " +
-                "COALESCE(a.notes, d.notes, c.notes) AS notes, " +
+                "CASE l.bill_type " +
+                "  WHEN 1 THEN 'Advance' " +
+                "  WHEN 2 THEN 'Due' " +
+                "  WHEN 3 THEN 'Due Collection' " +
+                "  WHEN 6 THEN 'Purchase Balance Pay' " +
+                "  ELSE bt.name END AS entry_type, " +
+                "COALESCE(a.amount, d.amount, c.amount, ap.amount) AS amount, " +
+                "COALESCE(a.notes, d.notes, c.notes, ap.notes) AS notes, " +
                 "l.created_at, l.advance, l.final_advance, l.due, l.final_due, " +
                 "COALESCE(pm.name, '-') AS payment_method, l.is_cash, l.is_bank " +
                 "FROM ce_bill_ledger l " +
@@ -1038,7 +1321,8 @@ public class currencyBean {
                 "LEFT JOIN ce_cus_advance a ON l.bill_type = 1 AND a.id = l.bill_id " +
                 "LEFT JOIN ce_cus_due d ON l.bill_type = 2 AND d.id = l.bill_id " +
                 "LEFT JOIN ce_cus_due_collection c ON l.bill_type = 3 AND c.id = l.bill_id " +
-                "LEFT JOIN ce_payment_method pm ON pm.id = COALESCE(l.payment_id, a.payment_id, d.payment_id, c.payment_id) " +
+                "LEFT JOIN ce_cus_advance_payment ap ON l.bill_type = 6 AND ap.id = l.bill_id " +
+                "LEFT JOIN ce_payment_method pm ON pm.id = COALESCE(l.payment_id, a.payment_id, d.payment_id, c.payment_id, ap.payment_id) " +
                 "WHERE l.customer_id = ? " +
                 "ORDER BY l.created_at DESC, l.id DESC"
             );

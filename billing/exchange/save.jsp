@@ -17,6 +17,7 @@ String currencyIdStr = request.getParameter("currencyId");
 String amountStr = request.getParameter("amount");
 String counterCurrencyIdStr = request.getParameter("counterCurrencyId");
 String counterAmountStr = request.getParameter("counterAmount");
+String paidStr = request.getParameter("paid");
 String paymentIdStr = request.getParameter("paymentId");
 String notes = request.getParameter("notes");
 
@@ -34,10 +35,12 @@ try {
     BigDecimal amount = new BigDecimal(amountStr.trim());
     int counterCurrencyId = Integer.parseInt(counterCurrencyIdStr);
     BigDecimal counterAmount = new BigDecimal(counterAmountStr.trim());
+    BigDecimal paid = (paidStr != null && paidStr.trim().length() > 0)
+        ? new BigDecimal(paidStr.trim()) : counterAmount;
     int paymentId = Integer.parseInt(paymentIdStr);
 
     exchange.saveExchange(customerId, exchangeType, exchangeDate, currencyId, amount,
-        counterCurrencyId, counterAmount, paymentId, notes, userId);
+        counterCurrencyId, counterAmount, paid, paymentId, notes, userId);
 
     response.sendRedirect(request.getContextPath() + "/exchange/page.jsp?msg=Exchange+saved+successfully&type=success");
 } catch (Exception e) {

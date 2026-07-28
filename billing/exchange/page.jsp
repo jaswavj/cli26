@@ -153,6 +153,18 @@ if (msg != null) {
                             </select>
                         </div>
 
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" id="paidLabel">Paid</label>
+                                <input type="number" step="0.0001" min="0" name="paid" id="paid" class="form-control fg-inp" placeholder="0.0000" value="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" id="balanceLabel">Balance</label>
+                                <input type="number" step="0.0001" min="0" name="balance" id="balance" class="form-control fg-inp bg-light" placeholder="0.0000" value="0" readonly>
+                                <div id="balanceHint" class="limit-hint"></div>
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Notes</label>
                             <textarea name="notes" class="form-control fg-inp" rows="2" placeholder="Optional"></textarea>
@@ -193,11 +205,15 @@ if (msg != null) {
     const amountInput = document.getElementById('amount');
     const exchangeRateInput = document.getElementById('exchangeRate');
     const counterAmountInput = document.getElementById('counterAmount');
+    const paidInput = document.getElementById('paid');
+    const balanceInput = document.getElementById('balance');
+    const balanceHint = document.getElementById('balanceHint');
     const paymentSelect = document.getElementById('paymentId');
     const rateSection = document.getElementById('rateSection');
     const rateLimitHint = document.getElementById('rateLimitHint');
     const calculatedHint = document.getElementById('calculatedHint');
     const exchangeRateLabel = document.getElementById('exchangeRateLabel');
+    let syncingPaid = false;
 
     let pairLimits = { min: 0, max: 0, hasLimit: false };
 
@@ -263,12 +279,53 @@ if (msg != null) {
             const total = (amt * rate).toFixed(4);
             counterAmountInput.value = total;
             calculatedHint.textContent = amt.toFixed(4) + ' ' + mainCode + ' × ' + rate.toFixed(4) + ' = ' + total + ' ' + counterCode;
+            syncPaidBalance(true);
         } else {
             counterAmountInput.value = '';
             calculatedHint.textContent = '';
+            syncPaidBalance(true);
         }
         updateCounterHints();
         updateCurrencyHints();
+    }
+
+    function syncPaidBalance(resetPaid) {
+        const total = parseFloat(counterAmountInput.value) || 0;
+        if (resetPaid) {
+            syncingPaid = true;
+            paidInput.value = total > 0 ? total.toFixed(4) : '0';
+            syncingPaid = false;
+        }
+        let paid = parseFloat(paidInput.value);
+        if (isNaN(paid) || paid < 0) paid = 0;
+        if (paid > total) {
+            paid = total;
+            if (!syncingPaid) {
+                syncingPaid = true;
+                paidInput.value = total.toFixed(4);
+                syncingPaid = false;
+            }
+        }
+        const bal = Math.max(0, total - paid);
+        balanceInput.value = bal.toFixed(4);
+        updateBalanceHint(bal);
+        updateCounterHints();
+    }
+
+    function updateBalanceHint(bal) {
+        const isPurchase = document.getElementById('typePurchase').checked;
+        if (!bal || bal <= 0) {
+            balanceHint.textContent = '';
+            balanceHint.style.color = '#64748b';
+            return;
+        }
+        if (isPurchase) {
+            balanceHint.textContent = 'Unpaid amount will be added to customer advance (shop owes customer)';
+            balanceHint.style.color = '#0f766e';
+        } else {
+            balanceHint.textContent = 'Unpaid amount will be added to customer due (customer owes shop)';
+            balanceHint.style.color = '#dc2626';
+        }
     }
 
     function getCurrencyById(id) {
@@ -354,7 +411,7 @@ if (msg != null) {
         }
 
         const stock = parseFloat(baseCurrency.stock || '0');
-        const counterAmt = parseFloat(counterAmountInput.value) || 0;
+        const paidAmt = parseFloat(paidInput.value) || 0;
         const counterCode = baseCurrency.code;
 
         if (!isCashPayment()) {
@@ -364,10 +421,10 @@ if (msg != null) {
         }
 
         if (isPurchase) {
-            counterStockHint.textContent = 'Available stock: ' + stock.toFixed(4) + ' ' + counterCode + ' (will decrease on cash purchase)';
-            counterStockHint.style.color = (counterAmt > 0 && counterAmt > stock) ? '#dc2626' : '#0f766e';
+            counterStockHint.textContent = 'Available stock: ' + stock.toFixed(4) + ' ' + counterCode + ' (will decrease by paid amount on cash purchase)';
+            counterStockHint.style.color = (paidAmt > 0 && paidAmt > stock) ? '#dc2626' : '#0f766e';
         } else {
-            counterStockHint.textContent = 'Stock after cash sale: ' + (stock + counterAmt).toFixed(4) + ' ' + counterCode;
+            counterStockHint.textContent = 'Stock after cash sale: ' + (stock + paidAmt).toFixed(4) + ' ' + counterCode + ' (increases by paid amount)';
             counterStockHint.style.color = '#0f766e';
         }
     }
@@ -380,8 +437,11 @@ if (msg != null) {
         document.getElementById('counterSectionTitle').textContent = 'Base Currency';
         document.getElementById('counterCurrencyLabel').textContent = 'Base Currency';
         document.getElementById('counterAmountLabel').textContent = isPurchase ? 'Paying Amount (Base)' : 'Receiving Amount (Base)';
+        document.getElementById('paidLabel').textContent = isPurchase ? 'Paid to Customer' : 'Paid by Customer';
+        document.getElementById('balanceLabel').textContent = isPurchase ? 'Balance (Advance)' : 'Balance (Due)';
         updateCurrencyHints();
         updateCounterHints();
+        updateBalanceHint(parseFloat(balanceInput.value) || 0);
     }
 
     document.querySelectorAll('input[name="exchangeType"]').forEach(function(el) {
@@ -395,6 +455,9 @@ if (msg != null) {
     paymentSelect.addEventListener('change', updateCounterHints);
     amountInput.addEventListener('input', calculateCounterAmount);
     exchangeRateInput.addEventListener('input', calculateCounterAmount);
+    paidInput.addEventListener('input', function() {
+        if (!syncingPaid) syncPaidBalance(false);
+    });
 
     searchInput.addEventListener('input', function() {
         clearTimeout(searchTimer);
@@ -443,6 +506,8 @@ if (msg != null) {
         const amt = parseFloat(amountInput.value);
         const rate = parseFloat(exchangeRateInput.value);
         const counterAmt = parseFloat(counterAmountInput.value);
+        const paidAmt = parseFloat(paidInput.value);
+        const balAmt = parseFloat(balanceInput.value) || 0;
         const isSale = document.getElementById('typeSale').checked;
         const isPurchase = document.getElementById('typePurchase').checked;
         const mainCode = getSelectedCode(currencySelect);
@@ -479,6 +544,29 @@ if (msg != null) {
             return;
         }
 
+        if (isNaN(paidAmt) || paidAmt < 0) {
+            e.preventDefault();
+            alert('Please enter a valid paid amount');
+            return;
+        }
+
+        if (paidAmt > counterAmt) {
+            e.preventDefault();
+            alert('Paid amount cannot exceed ' + (isPurchase ? 'paying' : 'receiving') + ' amount');
+            return;
+        }
+
+        const expectedBal = Math.round((counterAmt - paidAmt) * 10000) / 10000;
+        if (Math.abs(balAmt - expectedBal) > 0.0001) {
+            syncPaidBalance(false);
+        }
+
+        if (balAmt > 0 && !searchInput.value.trim()) {
+            e.preventDefault();
+            alert('Customer is required when there is a balance amount');
+            return;
+        }
+
         if (isSale && opt && opt.dataset.stock) {
             const stock = parseFloat(opt.dataset.stock);
             if (amt > stock) {
@@ -490,7 +578,7 @@ if (msg != null) {
 
         if (isPurchase && isCashPayment() && baseCurrency) {
             const counterStock = parseFloat(baseCurrency.stock || '0');
-            if (counterAmt > counterStock) {
+            if (paidAmt > counterStock) {
                 e.preventDefault();
                 alert('Insufficient base currency stock for cash payment. Available: ' + counterStock.toFixed(4) + ' ' + counterCode);
                 return;
@@ -508,6 +596,9 @@ if (msg != null) {
             document.getElementById('customerName').value = '';
             exchangeRateInput.value = '';
             counterAmountInput.value = '';
+            paidInput.value = '0';
+            balanceInput.value = '0';
+            balanceHint.textContent = '';
             fetchPairLimits().then(function() {
                 updateCurrencyHints();
                 updateCounterHints();

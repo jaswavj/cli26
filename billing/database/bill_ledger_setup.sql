@@ -13,7 +13,8 @@ INSERT IGNORE INTO ce_bill_type (id, name) VALUES
 (2, 'due'),
 (3, 'due collection'),
 (4, 'exchange bill'),
-(5, 'expense');
+(5, 'expense'),
+(6, 'advance payment');
 
 CREATE TABLE IF NOT EXISTS ce_bill_ledger (
     id INT AUTO_INCREMENT PRIMARY KEY,

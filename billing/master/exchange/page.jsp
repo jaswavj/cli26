@@ -12,6 +12,18 @@ if (userId == null) {
 Vector allCurrencies = currency.getCurrencyList();
 boolean hasBaseCurrency = currency.hasBaseCurrency();
 int baseCurrencyId = currency.getBaseCurrencyId();
+String baseCurrencyCode = "";
+String baseCurrencyName = "";
+if (allCurrencies != null) {
+    for (int i = 0; i < allCurrencies.size(); i++) {
+        Vector row = (Vector) allCurrencies.get(i);
+        if (Integer.parseInt(row.elementAt(0).toString()) == baseCurrencyId) {
+            baseCurrencyCode = row.elementAt(1).toString();
+            baseCurrencyName = row.elementAt(2).toString();
+            break;
+        }
+    }
+}
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -98,22 +110,15 @@ String type = request.getParameter("type");
                             <% } %>
                         </div>
 
-                        <% if (allCurrencies != null && allCurrencies.size() > 0) { %>
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Exchange Limits vs Existing Currencies</label>
-                            <small class="text-muted d-block mb-2">Enter min and max values for both directions against each currency already in the table.</small>
-                            <%
-                            for (int i = 0; i < allCurrencies.size(); i++) {
-                                Vector existing = (Vector) allCurrencies.get(i);
-                                int refId = Integer.parseInt(existing.elementAt(0).toString());
-                                String refCode = existing.elementAt(1).toString();
-                                String refName = existing.elementAt(2).toString();
-                            %>
+                        <% if (hasBaseCurrency && baseCurrencyId > 0) { %>
+                        <div class="mb-3" id="addBaseLimitSection">
+                            <label class="form-label fw-semibold">Exchange Limit vs Base Currency</label>
+                            <small class="text-muted d-block mb-2">Set min / max rate for this currency against <%= baseCurrencyCode %> (base).</small>
                             <div class="limit-block">
-                                <div class="limit-block-title"><%= refCode %> — <%= refName %></div>
-                                <input type="hidden" name="refCurrencyId" value="<%= refId %>">
+                                <div class="limit-block-title"><%= baseCurrencyCode %> — <%= baseCurrencyName %></div>
+                                <input type="hidden" name="refCurrencyId" value="<%= baseCurrencyId %>">
 
-                                <div class="limit-direction new-to-ref-label" data-ref-code="<%= refCode %>">New Currency &rarr; <%= refCode %></div>
+                                <div class="limit-direction new-to-ref-label" data-ref-code="<%= baseCurrencyCode %>">New Currency &rarr; <%= baseCurrencyCode %></div>
                                 <div class="row g-2">
                                     <div class="col-6">
                                         <label class="form-label small mb-1">Min Value</label>
@@ -124,22 +129,11 @@ String type = request.getParameter("type");
                                         <input type="number" step="0.0001" min="0" name="refMax" class="form-control fg-inp ref-limit-input" placeholder="0.0000" required>
                                     </div>
                                 </div>
-
-                                <div class="limit-direction ref-to-new-label" data-ref-code="<%= refCode %>"><%= refCode %> &rarr; New Currency</div>
-                                <div class="row g-2">
-                                    <div class="col-6">
-                                        <label class="form-label small mb-1">Min Value</label>
-                                        <input type="number" step="0.0001" min="0" name="revMin" class="form-control fg-inp ref-limit-input" placeholder="0.0000" required>
-                                    </div>
-                                    <div class="col-6">
-                                        <label class="form-label small mb-1">Max Value</label>
-                                        <input type="number" step="0.0001" min="0" name="revMax" class="form-control fg-inp ref-limit-input" placeholder="0.0000" required>
-                                    </div>
-                                </div>
                             </div>
-                            <%
-                            }
-                            %>
+                        </div>
+                        <% } else { %>
+                        <div class="mb-3">
+                            <small class="text-muted">Set a base currency first. Then new currencies will ask only for min / max vs that base.</small>
                         </div>
                         <% } %>
 
@@ -185,31 +179,23 @@ String type = request.getParameter("type");
 
                                             StringBuilder limitsJson = new StringBuilder("[");
                                             Vector limits = currency.getCurrencyLimits(id);
+                                            boolean firstLimit = true;
                                             for (int j = 0; j < limits.size(); j++) {
                                                 Vector limitRow = (Vector) limits.get(j);
-                                                if (j > 0) limitsJson.append(",");
+                                                int refId = Integer.parseInt(limitRow.elementAt(0).toString());
+                                                if (baseCurrencyId > 0 && refId != baseCurrencyId) {
+                                                    continue;
+                                                }
+                                                if (!firstLimit) limitsJson.append(",");
+                                                firstLimit = false;
                                                 limitsJson.append("{")
-                                                    .append("\"refId\":").append(limitRow.elementAt(0))
+                                                    .append("\"refId\":").append(refId)
                                                     .append(",\"refCode\":\"").append(limitRow.elementAt(1).toString().replace("\"", "\\\""))
                                                     .append("\",\"min\":\"").append(((BigDecimal) limitRow.elementAt(3)).toPlainString())
                                                     .append("\",\"max\":\"").append(((BigDecimal) limitRow.elementAt(4)).toPlainString())
                                                     .append("\"}");
                                             }
                                             limitsJson.append("]");
-
-                                            StringBuilder reverseLimitsJson = new StringBuilder("[");
-                                            Vector reverseLimits = currency.getReverseCurrencyLimits(id);
-                                            for (int j = 0; j < reverseLimits.size(); j++) {
-                                                Vector limitRow = (Vector) reverseLimits.get(j);
-                                                if (j > 0) reverseLimitsJson.append(",");
-                                                reverseLimitsJson.append("{")
-                                                    .append("\"currencyId\":").append(limitRow.elementAt(0))
-                                                    .append(",\"currencyCode\":\"").append(limitRow.elementAt(1).toString().replace("\"", "\\\""))
-                                                    .append("\",\"min\":\"").append(((BigDecimal) limitRow.elementAt(3)).toPlainString())
-                                                    .append("\",\"max\":\"").append(((BigDecimal) limitRow.elementAt(4)).toPlainString())
-                                                    .append("\"}");
-                                            }
-                                            reverseLimitsJson.append("]");
                                 %>
                                 <tr>
                                     <td><%= i + 1 %></td>
@@ -232,7 +218,7 @@ String type = request.getParameter("type");
                                     </td>
                                     <td class="text-center">
                                         <button type="button" class="btn btn-sm bb bb-outline me-1"
-                                            onclick='openEditModal(<%= id %>, <%= limitsJson.toString() %>, <%= reverseLimitsJson.toString() %>)'>
+                                            onclick='openEditModal(<%= id %>, <%= limitsJson.toString() %>)'>
                                             <i class="fa-solid fa-pen-to-square me-1"></i>Edit
                                         </button>
                                         <% if (isActive == 1) { %>
@@ -342,8 +328,21 @@ String type = request.getParameter("type");
 
     const hasBaseCurrency = <%= hasBaseCurrency ? "true" : "false" %>;
     const baseCurrencyId = <%= baseCurrencyId %>;
+    const baseCurrencyCode = '<%= baseCurrencyCode.replace("'", "\\'") %>';
+    const baseCurrencyName = '<%= baseCurrencyName.replace("'", "\\'") %>';
 
-    function openEditModal(id, savedLimits, savedReverseLimits) {
+    function toggleAddBaseLimitSection() {
+        const section = document.getElementById('addBaseLimitSection');
+        if (!section) return;
+        const isBaseChecked = document.getElementById('addIsBase') && document.getElementById('addIsBase').checked;
+        section.style.display = isBaseChecked ? 'none' : 'block';
+        section.querySelectorAll('.ref-limit-input').forEach(function(inp) {
+            inp.required = !isBaseChecked;
+            inp.disabled = isBaseChecked;
+        });
+    }
+
+    function openEditModal(id, savedLimits) {
         const currency = allCurrenciesData.find(function(item) { return item.id === id; });
         if (!currency) return;
 
@@ -372,56 +371,25 @@ String type = request.getParameter("type");
             limitsMap[item.refId] = item;
         });
 
-        const reverseLimitsMap = {};
-        (savedReverseLimits || []).forEach(function(item) {
-            reverseLimitsMap[item.currencyId] = item;
-        });
-
         const container = document.getElementById('editLimitsContainer');
         container.innerHTML = '';
 
-        const otherCurrencies = allCurrenciesData.filter(function(item) { return item.id !== id; });
-
-        if (otherCurrencies.length === 0) {
-            container.innerHTML = '<div class="text-muted small">No other currencies available for exchange limits.</div>';
+        if (isThisBase || baseCurrencyId <= 0) {
+            container.innerHTML = '<div class="text-muted small">Base currency does not need exchange limits. Limits are set on other currencies against the base.</div>';
         } else {
-            let html = '<label class="form-label fw-semibold">Exchange Limits vs Other Currencies</label>';
-            html += '<small class="text-muted d-block mb-2">Update min and max values for both directions against each existing currency.</small>';
-
-            otherCurrencies.forEach(function(ref) {
-                const saved = limitsMap[ref.id] || { min: '', max: '' };
-                const savedReverse = reverseLimitsMap[ref.id] || { min: '', max: '' };
-                html += '<div class="limit-block">';
-                html += '<div class="limit-block-title">' + ref.code + ' — ' + ref.name + '</div>';
-                html += '<input type="hidden" name="refCurrencyId" value="' + ref.id + '">';
-
-                html += '<div class="limit-direction">' + currency.code + ' &rarr; ' + ref.code + '</div>';
-                html += '<div class="row g-2">';
-                html += '<div class="col-6">';
-                html += '<label class="form-label small mb-1">Min Value</label>';
-                html += '<input type="number" step="0.0001" min="0" name="refMin" class="form-control fg-inp" value="' + saved.min + '" required>';
-                html += '</div>';
-                html += '<div class="col-6">';
-                html += '<label class="form-label small mb-1">Max Value</label>';
-                html += '<input type="number" step="0.0001" min="0" name="refMax" class="form-control fg-inp" value="' + saved.max + '" required>';
-                html += '</div>';
-                html += '</div>';
-
-                html += '<div class="limit-direction">' + ref.code + ' &rarr; ' + currency.code + '</div>';
-                html += '<div class="row g-2">';
-                html += '<div class="col-6">';
-                html += '<label class="form-label small mb-1">Min Value</label>';
-                html += '<input type="number" step="0.0001" min="0" name="revMin" class="form-control fg-inp" value="' + savedReverse.min + '" required>';
-                html += '</div>';
-                html += '<div class="col-6">';
-                html += '<label class="form-label small mb-1">Max Value</label>';
-                html += '<input type="number" step="0.0001" min="0" name="revMax" class="form-control fg-inp" value="' + savedReverse.max + '" required>';
-                html += '</div>';
-                html += '</div>';
-
-                html += '</div>';
-            });
-
+            const saved = limitsMap[baseCurrencyId] || { min: '', max: '' };
+            let html = '<label class="form-label fw-semibold">Exchange Limit vs Base Currency</label>';
+            html += '<small class="text-muted d-block mb-2">Min / max rate for ' + currency.code + ' against ' + baseCurrencyCode + ' (base).</small>';
+            html += '<div class="limit-block">';
+            html += '<div class="limit-block-title">' + baseCurrencyCode + ' — ' + baseCurrencyName + '</div>';
+            html += '<input type="hidden" name="refCurrencyId" value="' + baseCurrencyId + '">';
+            html += '<div class="limit-direction">' + currency.code + ' &rarr; ' + baseCurrencyCode + '</div>';
+            html += '<div class="row g-2">';
+            html += '<div class="col-6"><label class="form-label small mb-1">Min Value</label>';
+            html += '<input type="number" step="0.0001" min="0" name="refMin" class="form-control fg-inp" value="' + saved.min + '" required></div>';
+            html += '<div class="col-6"><label class="form-label small mb-1">Max Value</label>';
+            html += '<input type="number" step="0.0001" min="0" name="refMax" class="form-control fg-inp" value="' + saved.max + '" required></div>';
+            html += '</div></div>';
             container.innerHTML = html;
         }
 
@@ -436,10 +404,13 @@ String type = request.getParameter("type");
             document.querySelectorAll('.new-to-ref-label').forEach(function(el) {
                 el.innerHTML = code + ' &rarr; ' + el.getAttribute('data-ref-code');
             });
-            document.querySelectorAll('.ref-to-new-label').forEach(function(el) {
-                el.innerHTML = el.getAttribute('data-ref-code') + ' &rarr; ' + code;
-            });
         });
+    }
+
+    var addIsBase = document.getElementById('addIsBase');
+    if (addIsBase) {
+        addIsBase.addEventListener('change', toggleAddBaseLimitSection);
+        toggleAddBaseLimitSection();
     }
 </script>
 </body>

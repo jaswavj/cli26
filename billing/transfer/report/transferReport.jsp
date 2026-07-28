@@ -12,38 +12,35 @@ if (userId == null) {
 String today = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
 String fromDate = request.getParameter("fromDate");
 String toDate = request.getParameter("toDate");
-String exchangeTypeFilter = request.getParameter("exchangeType");
-String currencyFilter = request.getParameter("currencyId");
+String customerFilter = request.getParameter("customerId");
 if (fromDate == null || fromDate.isEmpty()) fromDate = today;
 if (toDate == null || toDate.isEmpty()) toDate = today;
-if (exchangeTypeFilter == null || exchangeTypeFilter.isEmpty()) exchangeTypeFilter = "0";
-if (currencyFilter == null || currencyFilter.isEmpty()) currencyFilter = "0";
+if (customerFilter == null || customerFilter.isEmpty()) customerFilter = "0";
 
-Vector currencies = currency.getActiveCurrencyList();
-Vector reportData = exchange.getCurrencyExchangeReport(fromDate, toDate,
-    Integer.parseInt(exchangeTypeFilter), Integer.parseInt(currencyFilter));
+Vector customers = currency.getCustomerList();
+Vector reportData = exchange.getCurrencyTransferReport(fromDate, toDate, Integer.parseInt(customerFilter));
 %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Currency Exchange Report</title>
+    <title>Currency Transfer Report</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <%@ include file="/assets/common/head.jsp" %>
 </head>
 <body>
     <%@ include file="/assets/navbar/navbar.jsp" %>
 <%
-    request.setAttribute("pageTitle", "Currency Exchange Report");
-    request.setAttribute("pageSubtitle", "Purchase / Sale Transactions");
-    request.setAttribute("pageIcon", "fa-solid fa-right-left");
+    request.setAttribute("pageTitle", "Currency Transfer Report");
+    request.setAttribute("pageSubtitle", "Give / Get transfers by date and customer");
+    request.setAttribute("pageIcon", "fa-solid fa-truck-ramp-box");
 %>
 <jsp:include page="/assets/common/pageHeader.jsp" />
 
 <div class="container-fluid mt-3 mst-page">
     <div class="mb-3">
-        <a href="<%=request.getContextPath()%>/exchange/page.jsp" class="bb bb-outline btn-sm">
-            <i class="fa-solid fa-arrow-left me-1"></i>Back to Exchange
+        <a href="<%=request.getContextPath()%>/transfer/page.jsp" class="bb bb-outline btn-sm">
+            <i class="fa-solid fa-arrow-left me-1"></i>Back to Transfer
         </a>
     </div>
 
@@ -58,27 +55,20 @@ Vector reportData = exchange.getCurrencyExchangeReport(fromDate, toDate,
                     <label class="form-label fw-semibold">To Date</label>
                     <input type="date" name="toDate" class="form-control fg-inp" value="<%= toDate %>">
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label fw-semibold">Type</label>
-                    <select name="exchangeType" class="form-select fg-inp">
-                        <option value="0" <%= "0".equals(exchangeTypeFilter) ? "selected" : "" %>>All</option>
-                        <option value="1" <%= "1".equals(exchangeTypeFilter) ? "selected" : "" %>>Purchase</option>
-                        <option value="2" <%= "2".equals(exchangeTypeFilter) ? "selected" : "" %>>Sale</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label fw-semibold">Currency</label>
-                    <select name="currencyId" class="form-select fg-inp">
-                        <option value="0">All Currencies</option>
-                        <% for (int i = 0; i < currencies.size(); i++) {
-                            Vector c = (Vector) currencies.get(i);
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Customer</label>
+                    <select name="customerId" class="form-select fg-inp">
+                        <option value="0">All Customers</option>
+                        <% for (int i = 0; i < customers.size(); i++) {
+                            Vector c = (Vector) customers.get(i);
                             int cid = Integer.parseInt(c.elementAt(0).toString());
+                            String cname = c.elementAt(1).toString();
                         %>
-                        <option value="<%= cid %>" <%= currencyFilter.equals(String.valueOf(cid)) ? "selected" : "" %>><%= c.elementAt(1) %></option>
+                        <option value="<%= cid %>" <%= customerFilter.equals(String.valueOf(cid)) ? "selected" : "" %>><%= cname %></option>
                         <% } %>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <button type="submit" class="bb bb-primary w-100"><i class="fa-solid fa-filter me-1"></i>Filter</button>
                 </div>
             </form>
@@ -88,7 +78,7 @@ Vector reportData = exchange.getCurrencyExchangeReport(fromDate, toDate,
     <div class="card mst-card">
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table mst-table table-hover mb-0" id="printTable">
+                <table class="table mst-table table-hover mb-0">
                     <thead>
                         <tr>
                             <th>#</th>
@@ -97,13 +87,9 @@ Vector reportData = exchange.getCurrencyExchangeReport(fromDate, toDate,
                             <th>Phone</th>
                             <th>Type</th>
                             <th>Currency</th>
-                            <th class="text-end">Amount</th>
-                            <th>Base</th>
-                            <th class="text-end">Base Amount</th>
-                            <th class="text-end">Rate</th>
-                            <th class="text-end">Paid</th>
-                            <th class="text-end">Balance</th>
-                            <th>Payment</th>
+                            <th class="text-end">Qty</th>
+                            <th>Status</th>
+                            <th>Return Date</th>
                             <th>User</th>
                             <th>Notes</th>
                         </tr>
@@ -121,18 +107,14 @@ Vector reportData = exchange.getCurrencyExchangeReport(fromDate, toDate,
                             <td><%= row.elementAt(5) %></td>
                             <td class="fw-semibold"><%= row.elementAt(6) %></td>
                             <td class="text-end fw-semibold"><%= ((BigDecimal) row.elementAt(7)).toPlainString() %></td>
-                            <td class="fw-semibold"><%= row.elementAt(8) %></td>
-                            <td class="text-end fw-semibold"><%= ((BigDecimal) row.elementAt(9)).toPlainString() %></td>
-                            <td class="text-end"><%= ((BigDecimal) row.elementAt(10)).toPlainString() %></td>
-                            <td class="text-end"><%= ((BigDecimal) row.elementAt(11)).toPlainString() %></td>
-                            <td class="text-end"><%= ((BigDecimal) row.elementAt(12)).toPlainString() %></td>
-                            <td><%= row.elementAt(13) != null ? row.elementAt(13) : "-" %></td>
-                            <td><%= row.elementAt(15) != null ? row.elementAt(15) : "-" %></td>
-                            <td><%= row.elementAt(14) != null ? row.elementAt(14) : "-" %></td>
+                            <td><%= row.elementAt(9) %></td>
+                            <td><%= row.elementAt(10) != null ? row.elementAt(10) : "-" %></td>
+                            <td><%= row.elementAt(11) != null ? row.elementAt(11) : "-" %></td>
+                            <td><%= row.elementAt(8) != null ? row.elementAt(8) : "-" %></td>
                         </tr>
                         <%  }
                            } else { %>
-                        <tr><td colspan="15" class="text-center py-4 text-muted">No exchange transactions found</td></tr>
+                        <tr><td colspan="11" class="text-center py-4 text-muted">No transfers found</td></tr>
                         <% } %>
                     </tbody>
                 </table>

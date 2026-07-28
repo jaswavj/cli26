@@ -7,8 +7,6 @@ String currencyName = request.getParameter("currencyName");
 String[] refCurrencyIds = request.getParameterValues("refCurrencyId");
 String[] refMins = request.getParameterValues("refMin");
 String[] refMaxs = request.getParameterValues("refMax");
-String[] revMins = request.getParameterValues("revMin");
-String[] revMaxs = request.getParameterValues("revMax");
 
 try {
     if (currencyCode == null || currencyCode.trim().isEmpty()) {
@@ -26,31 +24,6 @@ try {
         return;
     }
 
-    if (refCurrencyIds != null && refCurrencyIds.length > 0) {
-        if (refMins == null || refMaxs == null || revMins == null || revMaxs == null
-                || refMins.length != refCurrencyIds.length || refMaxs.length != refCurrencyIds.length
-                || revMins.length != refCurrencyIds.length || revMaxs.length != refCurrencyIds.length) {
-            response.sendRedirect(request.getContextPath() + "/master/exchange/page.jsp?msg=Please+enter+all+exchange+limits&type=warning");
-            return;
-        }
-
-        for (int i = 0; i < refCurrencyIds.length; i++) {
-            BigDecimal minValue = new BigDecimal(refMins[i].trim());
-            BigDecimal maxValue = new BigDecimal(refMaxs[i].trim());
-            if (minValue.compareTo(maxValue) > 0) {
-                response.sendRedirect(request.getContextPath() + "/master/exchange/page.jsp?msg=Minimum+value+cannot+be+greater+than+maximum+value&type=warning");
-                return;
-            }
-
-            BigDecimal revMinValue = new BigDecimal(revMins[i].trim());
-            BigDecimal revMaxValue = new BigDecimal(revMaxs[i].trim());
-            if (revMinValue.compareTo(revMaxValue) > 0) {
-                response.sendRedirect(request.getContextPath() + "/master/exchange/page.jsp?msg=Minimum+value+cannot+be+greater+than+maximum+value&type=warning");
-                return;
-            }
-        }
-    }
-
     boolean isBase = "1".equals(request.getParameter("isBase"));
 
     if (isBase && currency.hasBaseCurrency()) {
@@ -58,25 +31,37 @@ try {
         return;
     }
 
+    if (!isBase && currency.hasBaseCurrency()) {
+        if (refCurrencyIds == null || refCurrencyIds.length == 0
+                || refMins == null || refMaxs == null
+                || refMins.length != refCurrencyIds.length || refMaxs.length != refCurrencyIds.length) {
+            response.sendRedirect(request.getContextPath() + "/master/exchange/page.jsp?msg=Please+enter+min+and+max+vs+base+currency&type=warning");
+            return;
+        }
+        for (int i = 0; i < refCurrencyIds.length; i++) {
+            BigDecimal minValue = new BigDecimal(refMins[i].trim());
+            BigDecimal maxValue = new BigDecimal(refMaxs[i].trim());
+            if (minValue.compareTo(maxValue) > 0) {
+                response.sendRedirect(request.getContextPath() + "/master/exchange/page.jsp?msg=Minimum+value+cannot+be+greater+than+maximum+value&type=warning");
+                return;
+            }
+        }
+    }
+
     int newId = currency.addCurrency(currencyCode, currencyName, isBase);
 
-    if (refCurrencyIds != null && refCurrencyIds.length > 0) {
+    if (!isBase && refCurrencyIds != null && refCurrencyIds.length > 0) {
         int[] refIds = new int[refCurrencyIds.length];
         BigDecimal[] mins = new BigDecimal[refCurrencyIds.length];
         BigDecimal[] maxs = new BigDecimal[refCurrencyIds.length];
-        BigDecimal[] revMinValues = new BigDecimal[refCurrencyIds.length];
-        BigDecimal[] revMaxValues = new BigDecimal[refCurrencyIds.length];
 
         for (int i = 0; i < refCurrencyIds.length; i++) {
             refIds[i] = Integer.parseInt(refCurrencyIds[i]);
             mins[i] = new BigDecimal(refMins[i].trim());
             maxs[i] = new BigDecimal(refMaxs[i].trim());
-            revMinValues[i] = new BigDecimal(revMins[i].trim());
-            revMaxValues[i] = new BigDecimal(revMaxs[i].trim());
         }
 
         currency.saveCurrencyLimits(newId, refIds, mins, maxs);
-        currency.saveReverseCurrencyLimits(newId, refIds, revMinValues, revMaxValues);
     }
 
     response.sendRedirect(request.getContextPath() + "/master/exchange/page.jsp?msg=Currency+added+successfully&type=success");

@@ -96,6 +96,7 @@ for (int i = 0; i < vecPer.size(); i++) {
       </a>
       <div class="collapse sidebar-submenu" id="exchangeMenu">
         <a href="<%=request.getContextPath()%>/exchange/page.jsp" class="sidebar-subitem">New Exchange</a>
+        <a href="<%=request.getContextPath()%>/transfer/page.jsp" class="sidebar-subitem">Currency Transfer</a>
         <a href="<%=request.getContextPath()%>/master/exchange/page.jsp" class="sidebar-subitem">Currency Master</a>
       </div>
     </div>
@@ -109,6 +110,7 @@ for (int i = 0; i < vecPer.size(); i++) {
       </a>
       <div class="collapse sidebar-submenu" id="exchangeReportMenu">
         <a href="<%=request.getContextPath()%>/exchange/report/exchangeReport.jsp" class="sidebar-subitem">Exchange Report</a>
+        <a href="<%=request.getContextPath()%>/transfer/report/transferReport.jsp" class="sidebar-subitem">Transfer Report</a>
         <a href="<%=request.getContextPath()%>/exchange/report/stockReport.jsp" class="sidebar-subitem">Current Stock Report</a>
         <a href="<%=request.getContextPath()%>/exchange/report/stockTransactionReport.jsp" class="sidebar-subitem">Stock Trans Report</a>
         <a href="<%=request.getContextPath()%>/exchange/report/ledgerReport.jsp" class="sidebar-subitem">Ledger Report</a>
