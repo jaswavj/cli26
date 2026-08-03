@@ -3,6 +3,21 @@
 <%@ page language="java" import="java.util.*, java.math.BigDecimal, java.text.SimpleDateFormat, java.util.Date" %>
 
 <jsp:useBean id="exchange" class="currency.exchangeBean" />
+<%!
+    private String formatLedgerBalance(BigDecimal value) {
+        if (value == null) {
+            return "0.00";
+        }
+        return value.setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString();
+    }
+
+    private String formatLedgerCell(BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) == 0) {
+            return "";
+        }
+        return value.setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString();
+    }
+%>
 <%
 
 Integer userId = (Integer) session.getAttribute("userId");
@@ -249,25 +264,25 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
             <div class="row g-2 mb-3 print-hide">
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= cashOpening.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(cashOpening) %></div>
                         <div class="text-muted small">Opening Balance</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= cashTotalIn.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(cashTotalIn) %></div>
                         <div class="text-muted small">Total Cash In</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= cashTotalOut.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(cashTotalOut) %></div>
                         <div class="text-muted small">Total Cash Out</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= cashClosing.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(cashClosing) %></div>
                         <div class="text-muted small">Closing Balance</div>
                     </div>
                 </div>
@@ -287,8 +302,8 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
                             <tbody>
                                 <tr class="balance-row">
                                     <td>Opening Balance</td>
-                                    <td class="text-end"><%= cashOpening.toPlainString() %></td>
-                                    <td class="text-end">0.0000</td>
+                                    <td class="text-end"><%= formatLedgerBalance(cashOpening) %></td>
+                                    <td class="text-end"></td>
                                 </tr>
                                 <% if (cashBookSummary.size() > 0) {
                                     for (int i = 0; i < cashBookSummary.size(); i++) {
@@ -298,15 +313,15 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
                                 %>
                                 <tr>
                                     <td><%= row.elementAt(0) %></td>
-                                    <td class="text-end"><%= cashIn.compareTo(BigDecimal.ZERO) > 0 ? cashIn.toPlainString() : "" %></td>
-                                    <td class="text-end"><%= cashOut.compareTo(BigDecimal.ZERO) > 0 ? cashOut.toPlainString() : "" %></td>
+                                    <td class="text-end"><%= formatLedgerCell(cashIn) %></td>
+                                    <td class="text-end"><%= formatLedgerCell(cashOut) %></td>
                                 </tr>
                                 <%  } } else { %>
                                 <tr><td colspan="3" class="text-center py-4 text-muted">No cash entries found</td></tr>
                                 <% } %>
                                 <tr class="balance-row">
                                     <td>Closing Balance</td>
-                                    <td class="text-end"><%= cashClosing.toPlainString() %></td>
+                                    <td class="text-end"><%= formatLedgerBalance(cashClosing) %></td>
                                     <td class="text-end"></td>
                                 </tr>
                             </tbody>
@@ -328,25 +343,25 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
             <div class="row g-2 mb-3 print-hide">
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= bankOpening.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(bankOpening) %></div>
                         <div class="text-muted small">Opening Balance</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= bankTotalIn.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(bankTotalIn) %></div>
                         <div class="text-muted small">Total Bank In</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= bankTotalOut.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(bankTotalOut) %></div>
                         <div class="text-muted small">Total Bank Out</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= bankClosing.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(bankClosing) %></div>
                         <div class="text-muted small">Closing Balance</div>
                     </div>
                 </div>
@@ -366,8 +381,8 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
                             <tbody>
                                 <tr class="balance-row">
                                     <td>Opening Balance</td>
-                                    <td class="text-end"><%= bankOpening.toPlainString() %></td>
-                                    <td class="text-end">0.0000</td>
+                                    <td class="text-end"><%= formatLedgerBalance(bankOpening) %></td>
+                                    <td class="text-end"></td>
                                 </tr>
                                 <% if (bankBookSummary.size() > 0) {
                                     for (int i = 0; i < bankBookSummary.size(); i++) {
@@ -377,15 +392,15 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
                                 %>
                                 <tr>
                                     <td><%= row.elementAt(0) %></td>
-                                    <td class="text-end"><%= bankIn.compareTo(BigDecimal.ZERO) > 0 ? bankIn.toPlainString() : "" %></td>
-                                    <td class="text-end"><%= bankOut.compareTo(BigDecimal.ZERO) > 0 ? bankOut.toPlainString() : "" %></td>
+                                    <td class="text-end"><%= formatLedgerCell(bankIn) %></td>
+                                    <td class="text-end"><%= formatLedgerCell(bankOut) %></td>
                                 </tr>
                                 <%  } } else { %>
                                 <tr><td colspan="3" class="text-center py-4 text-muted">No bank entries found</td></tr>
                                 <% } %>
                                 <tr class="balance-row">
                                     <td>Closing Balance</td>
-                                    <td class="text-end"><%= bankClosing.toPlainString() %></td>
+                                    <td class="text-end"><%= formatLedgerBalance(bankClosing) %></td>
                                     <td class="text-end"></td>
                                 </tr>
                             </tbody>
@@ -407,25 +422,25 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
             <div class="row g-2 mb-3 print-hide">
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= dayOpening.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(dayOpening) %></div>
                         <div class="text-muted small">Opening Balance</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= dayTotalIn.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(dayTotalIn) %></div>
                         <div class="text-muted small">Total In</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= dayTotalOut.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(dayTotalOut) %></div>
                         <div class="text-muted small">Total Out</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="summary-card">
-                        <div class="summary-value"><%= dayClosing.toPlainString() %></div>
+                        <div class="summary-value"><%= formatLedgerBalance(dayClosing) %></div>
                         <div class="text-muted small">Closing Balance</div>
                     </div>
                 </div>
@@ -445,8 +460,8 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
                             <tbody>
                                 <tr class="balance-row">
                                     <td>Opening Balance</td>
-                                    <td class="text-end"><%= dayOpening.toPlainString() %></td>
-                                    <td class="text-end">0.0000</td>
+                                    <td class="text-end"><%= formatLedgerBalance(dayOpening) %></td>
+                                    <td class="text-end"></td>
                                 </tr>
                                 <% if (dayBookSummary.size() > 0) {
                                     for (int i = 0; i < dayBookSummary.size(); i++) {
@@ -456,15 +471,15 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
                                 %>
                                 <tr>
                                     <td><%= row.elementAt(0) %></td>
-                                    <td class="text-end"><%= dayIn.compareTo(BigDecimal.ZERO) > 0 ? dayIn.toPlainString() : "" %></td>
-                                    <td class="text-end"><%= dayOut.compareTo(BigDecimal.ZERO) > 0 ? dayOut.toPlainString() : "" %></td>
+                                    <td class="text-end"><%= formatLedgerCell(dayIn) %></td>
+                                    <td class="text-end"><%= formatLedgerCell(dayOut) %></td>
                                 </tr>
                                 <%  } } else { %>
                                 <tr><td colspan="3" class="text-center py-4 text-muted">No entries found</td></tr>
                                 <% } %>
                                 <tr class="balance-row">
                                     <td>Closing Balance</td>
-                                    <td class="text-end"><%= dayClosing.toPlainString() %></td>
+                                    <td class="text-end"><%= formatLedgerBalance(dayClosing) %></td>
                                     <td class="text-end"></td>
                                 </tr>
                             </tbody>
@@ -539,7 +554,7 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
 
                                     <td><%= row.elementAt(4) %></td>
 
-                                    <td class="text-end fw-semibold"><%= ((BigDecimal) row.elementAt(5)).toPlainString() %></td>
+                                    <td class="text-end fw-semibold"><%= formatLedgerBalance((BigDecimal) row.elementAt(5)) %></td>
 
                                     <td><%= row.elementAt(6) != null ? row.elementAt(6) : "-" %></td>
 

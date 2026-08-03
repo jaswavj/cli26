@@ -788,8 +788,18 @@ public class exchangeBean {
             con = util.DBConnectionManager.getConnectionFromPool();
             String column = cashColumn ? "is_cash" : "is_bank";
             pt = con.prepareStatement(
-                "SELECT COALESCE(SUM(" + column + "), 0) AS opening_balance " +
-                "FROM ce_bill_ledger WHERE DATE(created_at) < ? AND " + column + " > 0"
+                "SELECT COALESCE(SUM(net_amount), 0) AS opening_balance FROM (" +
+                "  SELECT " +
+                "    CASE " +
+                "      WHEN l.bill_type IN (1, 2, 3) OR (l.bill_type = 4 AND e.exchange_type = 2) THEN l." + column + " " +
+                "      WHEN l.bill_type = 4 AND e.exchange_type = 1 THEN -l." + column + " " +
+                "      WHEN l.bill_type IN (5, 6) THEN -l." + column + " " +
+                "      ELSE 0 " +
+                "    END AS net_amount " +
+                "  FROM ce_bill_ledger l " +
+                "  LEFT JOIN ce_currency_exchange e ON l.bill_type = 4 AND e.id = l.bill_id AND e.is_cancelled = 0 " +
+                "  WHERE DATE(l.created_at) < ? AND l." + column + " > 0 " +
+                ") t"
             );
             pt.setString(1, fromDate);
             rs = pt.executeQuery();
@@ -866,8 +876,6 @@ public class exchangeBean {
                 "SELECT description, SUM(cash_in) AS cash_in, SUM(cash_out) AS cash_out FROM (" +
                 "  SELECT " +
                 "    CASE " +
-                "      WHEN l.bill_type = 1 THEN 'Advance' " +
-                "      WHEN l.bill_type = 2 THEN 'Due' " +
                 "      WHEN l.bill_type = 3 THEN 'Due Collection' " +
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 1 THEN 'Exchange - Purchase' " +
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 2 THEN 'Exchange - Sale' " +
@@ -877,7 +885,7 @@ public class exchangeBean {
                 "      ELSE bt.name " +
                 "    END AS description, " +
                 "    CASE " +
-                "      WHEN l.bill_type IN (1, 3) OR l.bill_type = 2 OR (l.bill_type = 4 AND e.exchange_type = 2) THEN (l.is_cash + l.is_bank) " +
+                "      WHEN l.bill_type = 3 OR (l.bill_type = 4 AND e.exchange_type = 2) THEN (l.is_cash + l.is_bank) " +
                 "      ELSE 0 " +
                 "    END AS cash_in, " +
                 "    CASE " +
@@ -889,8 +897,9 @@ public class exchangeBean {
                 "  INNER JOIN ce_bill_type bt ON bt.id = l.bill_type " +
                 "  LEFT JOIN ce_currency_exchange e ON l.bill_type = 4 AND e.id = l.bill_id AND e.is_cancelled = 0 " +
                 "  WHERE DATE(l.created_at) BETWEEN ? AND ? AND (l.is_cash > 0 OR l.is_bank > 0) " +
+                "    AND l.bill_type NOT IN (1, 2) " +
                 ") t GROUP BY description " +
-                "ORDER BY FIELD(description, 'Advance', 'Due', 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense', 'Purchase Balance Pay')"
+                "ORDER BY FIELD(description, 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense', 'Purchase Balance Pay')"
             );
             pt.setString(1, fromDate);
             pt.setString(2, toDate);
@@ -922,8 +931,6 @@ public class exchangeBean {
                 "SELECT description, SUM(cash_in) AS cash_in, SUM(cash_out) AS cash_out FROM (" +
                 "  SELECT " +
                 "    CASE " +
-                "      WHEN l.bill_type = 1 THEN 'Advance' " +
-                "      WHEN l.bill_type = 2 THEN 'Due' " +
                 "      WHEN l.bill_type = 3 THEN 'Due Collection' " +
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 1 THEN 'Exchange - Purchase' " +
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 2 THEN 'Exchange - Sale' " +
@@ -933,7 +940,7 @@ public class exchangeBean {
                 "      ELSE bt.name " +
                 "    END AS description, " +
                 "    CASE " +
-                "      WHEN l.bill_type IN (1, 3) OR l.bill_type = 2 OR (l.bill_type = 4 AND e.exchange_type = 2) THEN l." + column + " " +
+                "      WHEN l.bill_type = 3 OR (l.bill_type = 4 AND e.exchange_type = 2) THEN l." + column + " " +
                 "      ELSE 0 " +
                 "    END AS cash_in, " +
                 "    CASE " +
@@ -945,8 +952,9 @@ public class exchangeBean {
                 "  INNER JOIN ce_bill_type bt ON bt.id = l.bill_type " +
                 "  LEFT JOIN ce_currency_exchange e ON l.bill_type = 4 AND e.id = l.bill_id AND e.is_cancelled = 0 " +
                 "  WHERE DATE(l.created_at) BETWEEN ? AND ? AND l." + column + " > 0 " +
+                "    AND l.bill_type NOT IN (1, 2) " +
                 ") t GROUP BY description " +
-                "ORDER BY FIELD(description, 'Advance', 'Due', 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense', 'Purchase Balance Pay')"
+                "ORDER BY FIELD(description, 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense', 'Purchase Balance Pay')"
             );
             pt.setString(1, fromDate);
             pt.setString(2, toDate);
