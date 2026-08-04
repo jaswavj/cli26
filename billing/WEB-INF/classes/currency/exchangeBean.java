@@ -780,31 +780,32 @@ public class exchangeBean {
         }
     }
 
-    public BigDecimal getLedgerOpeningBalance(String fromDate, boolean cashColumn) throws Exception {
+    private BigDecimal getLedgerNetBalance(String date, boolean cashColumn, boolean inclusive) throws Exception {
         Connection con = null;
         PreparedStatement pt = null;
         ResultSet rs = null;
         try {
             con = util.DBConnectionManager.getConnectionFromPool();
             String column = cashColumn ? "is_cash" : "is_bank";
+            String dateCondition = inclusive ? "DATE(l.created_at) <= ?" : "DATE(l.created_at) < ?";
             pt = con.prepareStatement(
-                "SELECT COALESCE(SUM(net_amount), 0) AS opening_balance FROM (" +
+                "SELECT COALESCE(SUM(net_amount), 0) AS balance FROM (" +
                 "  SELECT " +
                 "    CASE " +
-                "      WHEN l.bill_type IN (1, 2, 3) OR (l.bill_type = 4 AND e.exchange_type = 2) THEN l." + column + " " +
+                "      WHEN l.bill_type = 3 OR (l.bill_type = 4 AND e.exchange_type = 2) THEN l." + column + " " +
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 1 THEN -l." + column + " " +
                 "      WHEN l.bill_type IN (5, 6) THEN -l." + column + " " +
                 "      ELSE 0 " +
                 "    END AS net_amount " +
                 "  FROM ce_bill_ledger l " +
                 "  LEFT JOIN ce_currency_exchange e ON l.bill_type = 4 AND e.id = l.bill_id AND e.is_cancelled = 0 " +
-                "  WHERE DATE(l.created_at) < ? AND l." + column + " > 0 " +
+                "  WHERE " + dateCondition + " AND l." + column + " > 0 AND l.bill_type NOT IN (1, 2) " +
                 ") t"
             );
-            pt.setString(1, fromDate);
+            pt.setString(1, date);
             rs = pt.executeQuery();
             if (rs.next()) {
-                return safeAmount(rs.getBigDecimal("opening_balance"));
+                return safeAmount(rs.getBigDecimal("balance"));
             }
             return BigDecimal.ZERO;
         } finally {
@@ -812,6 +813,14 @@ public class exchangeBean {
             if (pt != null) try { pt.close(); } catch (Exception e) {}
             if (con != null) try { con.close(); } catch (Exception e) {}
         }
+    }
+
+    public BigDecimal getLedgerOpeningBalance(String fromDate, boolean cashColumn) throws Exception {
+        return getLedgerNetBalance(fromDate, cashColumn, false);
+    }
+
+    public BigDecimal getLedgerBalanceUpTo(String toDate, boolean cashColumn) throws Exception {
+        return getLedgerNetBalance(toDate, cashColumn, true);
     }
 
     public BigDecimal getLedgerPeriodTotal(String fromDate, String toDate, boolean cashColumn) throws Exception {
@@ -841,8 +850,15 @@ public class exchangeBean {
 
     public BigDecimal getLedgerClosingBalance(String fromDate, String toDate, boolean cashColumn) throws Exception {
         BigDecimal opening = getLedgerOpeningBalance(fromDate, cashColumn);
-        BigDecimal periodTotal = getLedgerPeriodTotal(fromDate, toDate, cashColumn);
-        return opening.add(periodTotal);
+        BigDecimal totalIn = BigDecimal.ZERO;
+        BigDecimal totalOut = BigDecimal.ZERO;
+        Vector summary = getLedgerBookSummary(fromDate, toDate, cashColumn);
+        for (int i = 0; i < summary.size(); i++) {
+            Vector row = (Vector) summary.get(i);
+            totalIn = totalIn.add((BigDecimal) row.elementAt(1));
+            totalOut = totalOut.add((BigDecimal) row.elementAt(2));
+        }
+        return opening.add(totalIn).subtract(totalOut);
     }
 
     public Vector getCashBookReport(String fromDate, String toDate) throws Exception {
