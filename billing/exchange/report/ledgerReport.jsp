@@ -17,6 +17,25 @@
         }
         return value.setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString();
     }
+
+    private String formatTxnDate(java.sql.Timestamp ts) {
+        if (ts == null) {
+            return "-";
+        }
+        return new SimpleDateFormat("dd-MM-yyyy hh:mm a").format(ts);
+    }
+
+    private String formatTxnAdjusted(BigDecimal dueAdjusted, BigDecimal advanceAdjusted) {
+        BigDecimal due = dueAdjusted != null ? dueAdjusted : BigDecimal.ZERO;
+        BigDecimal adv = advanceAdjusted != null ? advanceAdjusted : BigDecimal.ZERO;
+        if (due.compareTo(BigDecimal.ZERO) > 0) {
+            return "Due " + due.setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString();
+        }
+        if (adv.compareTo(BigDecimal.ZERO) > 0) {
+            return "Adv " + adv.setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString();
+        }
+        return "";
+    }
 %>
 <%
 
@@ -515,7 +534,7 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
 
                                 <tr>
 
-                                    <th>#</th>
+                                    <th>S.No</th>
 
                                     <th>Date/Time</th>
 
@@ -525,11 +544,19 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
 
                                     <th>Type</th>
 
-                                    <th class="text-end">Amount</th>
+                                    <th>Details</th>
+
+                                    <th class="text-end">Bill Amount</th>
+
+                                    <th class="text-end">Adjusted</th>
+
+                                    <th class="text-end">Paid</th>
+
+                                    <th class="text-end">Balance</th>
 
                                     <th>Payment</th>
 
-                                    <th>Details</th>
+                                    <th>Notes</th>
 
                                     <th>User</th>
 
@@ -544,26 +571,42 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
                                     for (int i = 0; i < allTransactions.size(); i++) {
 
                                         Vector row = (Vector) allTransactions.get(i);
+                                        BigDecimal billAmount = row.size() > 9 ? (BigDecimal) row.elementAt(9) : (BigDecimal) row.elementAt(5);
+                                        BigDecimal paidAmount = row.size() > 10 ? (BigDecimal) row.elementAt(10) : null;
+                                        BigDecimal balanceAmount = row.size() > 11 ? (BigDecimal) row.elementAt(11) : null;
+                                        BigDecimal dueAdjusted = row.size() > 12 ? (BigDecimal) row.elementAt(12) : BigDecimal.ZERO;
+                                        BigDecimal advanceAdjusted = row.size() > 13 ? (BigDecimal) row.elementAt(13) : BigDecimal.ZERO;
+                                        String txnNotes = row.size() > 14 && row.elementAt(14) != null ? row.elementAt(14).toString() : "";
+                                        String txnType = row.elementAt(4) != null ? row.elementAt(4).toString() : "";
+                                        boolean isExchange = txnType.startsWith("Exchange");
 
                                 %>
 
                                 <tr>
 
-                                    <td><%= row.elementAt(0) %></td>
+                                    <td><%= i + 1 %></td>
 
-                                    <td><%= row.elementAt(1) %></td>
+                                    <td><%= formatTxnDate((java.sql.Timestamp) row.elementAt(1)) %></td>
 
-                                    <td><%= row.elementAt(2) %></td>
+                                    <td><%= row.elementAt(2) != null ? row.elementAt(2) : "-" %></td>
 
                                     <td><%= row.elementAt(3) != null ? row.elementAt(3) : "-" %></td>
 
-                                    <td><%= row.elementAt(4) %></td>
+                                    <td><%= txnType %></td>
 
-                                    <td class="text-end fw-semibold"><%= formatLedgerBalance((BigDecimal) row.elementAt(5)) %></td>
+                                    <td><%= row.elementAt(7) != null ? row.elementAt(7) : "-" %></td>
+
+                                    <td class="text-end fw-semibold"><%= formatLedgerCell(billAmount) %></td>
+
+                                    <td class="text-end"><%= formatTxnAdjusted(dueAdjusted, advanceAdjusted) %></td>
+
+                                    <td class="text-end"><%= isExchange ? formatLedgerCell(paidAmount) : formatLedgerCell(billAmount) %></td>
+
+                                    <td class="text-end"><%= isExchange ? formatLedgerCell(balanceAmount) : "" %></td>
 
                                     <td><%= row.elementAt(6) != null ? row.elementAt(6) : "-" %></td>
 
-                                    <td><%= row.elementAt(7) != null ? row.elementAt(7) : "-" %></td>
+                                    <td><%= txnNotes != null && txnNotes.trim().length() > 0 ? txnNotes : "-" %></td>
 
                                     <td><%= row.elementAt(8) != null ? row.elementAt(8) : "-" %></td>
 
@@ -571,7 +614,7 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
 
                                 <%  } } else { %>
 
-                                <tr><td colspan="9" class="text-center py-4 text-muted">No transactions found</td></tr>
+                                <tr><td colspan="13" class="text-center py-4 text-muted">No transactions found</td></tr>
 
                                 <% } %>
 

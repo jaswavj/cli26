@@ -160,13 +160,14 @@ public class exchangeBean {
     }
 
     /**
-     * Applies unpaid exchange balance to ce_customer_account.
-     * Sale unpaid → due (customer owes shop).
-     * Purchase unpaid → advance (shop owes customer).
+     * Applies exchange offsets and unpaid balance to ce_customer_account.
+     * Purchase: existing due reduces payable; remaining unpaid → advance.
+     * Sale: existing advance reduces collectible; remaining unpaid → due.
      * balances array is filled as [beforeAdvance, afterAdvance, beforeDue, afterDue].
      */
-    private void applyExchangeCustomerBalance(Connection con, int customerId, int exchangeType,
-            BigDecimal balanceAmt, BigDecimal[] balances) throws Exception {
+    private void applyExchangeAccountUpdates(Connection con, int customerId, int exchangeType,
+            BigDecimal dueAdjusted, BigDecimal advanceAdjusted, BigDecimal balanceAmt,
+            BigDecimal[] balances) throws Exception {
         ensureCustomerAccount(con, customerId);
 
         BigDecimal[] current = new BigDecimal[2];
@@ -176,16 +177,40 @@ public class exchangeBean {
         BigDecimal afterAdvance = beforeAdvance;
         BigDecimal afterDue = beforeDue;
 
-        if (balanceAmt != null && balanceAmt.compareTo(BigDecimal.ZERO) > 0) {
-            PreparedStatement pt = null;
-            try {
+        PreparedStatement pt = null;
+        try {
+            if (dueAdjusted != null && dueAdjusted.compareTo(BigDecimal.ZERO) > 0) {
+                afterDue = beforeDue.subtract(dueAdjusted);
+                pt = con.prepareStatement(
+                    "UPDATE ce_customer_account SET due = due - ? WHERE customer_id = ?"
+                );
+                pt.setBigDecimal(1, dueAdjusted);
+                pt.setInt(2, customerId);
+                pt.executeUpdate();
+                pt.close();
+                pt = null;
+            }
+
+            if (advanceAdjusted != null && advanceAdjusted.compareTo(BigDecimal.ZERO) > 0) {
+                afterAdvance = afterAdvance.subtract(advanceAdjusted);
+                pt = con.prepareStatement(
+                    "UPDATE ce_customer_account SET advance = advance - ? WHERE customer_id = ?"
+                );
+                pt.setBigDecimal(1, advanceAdjusted);
+                pt.setInt(2, customerId);
+                pt.executeUpdate();
+                pt.close();
+                pt = null;
+            }
+
+            if (balanceAmt != null && balanceAmt.compareTo(BigDecimal.ZERO) > 0) {
                 if (exchangeType == EXCHANGE_TYPE_SALE) {
-                    afterDue = beforeDue.add(balanceAmt);
+                    afterDue = afterDue.add(balanceAmt);
                     pt = con.prepareStatement(
                         "UPDATE ce_customer_account SET due = due + ? WHERE customer_id = ?"
                     );
                 } else {
-                    afterAdvance = beforeAdvance.add(balanceAmt);
+                    afterAdvance = afterAdvance.add(balanceAmt);
                     pt = con.prepareStatement(
                         "UPDATE ce_customer_account SET advance = advance + ? WHERE customer_id = ?"
                     );
@@ -193,15 +218,31 @@ public class exchangeBean {
                 pt.setBigDecimal(1, balanceAmt);
                 pt.setInt(2, customerId);
                 pt.executeUpdate();
-            } finally {
-                if (pt != null) try { pt.close(); } catch (Exception e) {}
             }
+        } finally {
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
         }
 
         balances[0] = beforeAdvance;
         balances[1] = afterAdvance;
         balances[2] = beforeDue;
         balances[3] = afterDue;
+    }
+
+    public Vector getCustomerBalanceSummary(int customerId) throws Exception {
+        Connection con = null;
+        BigDecimal[] balances = new BigDecimal[2];
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            ensureCustomerAccount(con, customerId);
+            loadAccountBalances(con, customerId, balances);
+        } finally {
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
+        Vector row = new Vector();
+        row.addElement(balances[0]);
+        row.addElement(balances[1]);
+        return row;
     }
 
     private int getPaymentMethodIsCash(Connection con, int paymentId) throws Exception {
@@ -541,16 +582,42 @@ public class exchangeBean {
         if (paidAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw new Exception("Paid amount cannot be negative");
         }
-        if (paidAmount.compareTo(counterAmount) > 0) {
-            throw new Exception("Paid amount cannot exceed counter amount");
-        }
-        BigDecimal balanceAmount = counterAmount.subtract(paidAmount).setScale(4, java.math.RoundingMode.HALF_UP);
 
         Connection con = null;
         PreparedStatement pt = null;
         try {
             con = util.DBConnectionManager.getConnectionFromPool();
             con.setAutoCommit(false);
+
+            ensureCustomerAccount(con, customerId);
+            BigDecimal[] currentBalances = new BigDecimal[2];
+            loadAccountBalances(con, customerId, currentBalances);
+            BigDecimal customerAdvance = currentBalances[0];
+            BigDecimal customerDue = currentBalances[1];
+
+            BigDecimal dueAdjusted = BigDecimal.ZERO;
+            BigDecimal advanceAdjusted = BigDecimal.ZERO;
+            if (exchangeType == EXCHANGE_TYPE_PURCHASE) {
+                dueAdjusted = customerDue.min(counterAmount).setScale(4, java.math.RoundingMode.HALF_UP);
+            } else {
+                advanceAdjusted = customerAdvance.min(counterAmount).setScale(4, java.math.RoundingMode.HALF_UP);
+            }
+
+            BigDecimal offsetAmount = exchangeType == EXCHANGE_TYPE_PURCHASE ? dueAdjusted : advanceAdjusted;
+            BigDecimal payableAfterAdjust = counterAmount.subtract(offsetAmount)
+                .setScale(4, java.math.RoundingMode.HALF_UP);
+
+            if (paidAmount.compareTo(payableAfterAdjust) > 0) {
+                throw new Exception("Paid amount cannot exceed "
+                    + payableAfterAdjust.toPlainString() + " after balance adjustment");
+            }
+
+            BigDecimal balanceAmount = payableAfterAdjust.subtract(paidAmount)
+                .setScale(4, java.math.RoundingMode.HALF_UP);
+
+            if (paidAmount.compareTo(counterAmount) > 0) {
+                throw new Exception("Paid amount cannot exceed counter amount");
+            }
 
             int baseCurrencyId = getBaseCurrencyId(con);
             if (baseCurrencyId <= 0) {
@@ -571,8 +638,8 @@ public class exchangeBean {
 
             pt = con.prepareStatement(
                 "INSERT INTO ce_currency_exchange " +
-                "(customer_id, exchange_type, exchange_date, currency_id, amount, counter_currency_id, counter_amount, paid, balance, payment_id, notes, uid, is_cancelled) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+                "(customer_id, exchange_type, exchange_date, currency_id, amount, counter_currency_id, counter_amount, paid, balance, due_adjusted, advance_adjusted, payment_id, notes, uid, is_cancelled) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
                 Statement.RETURN_GENERATED_KEYS
             );
             pt.setInt(1, customerId);
@@ -584,13 +651,15 @@ public class exchangeBean {
             pt.setBigDecimal(7, counterAmount);
             pt.setBigDecimal(8, paidAmount);
             pt.setBigDecimal(9, balanceAmount);
-            pt.setInt(10, paymentId);
+            pt.setBigDecimal(10, dueAdjusted);
+            pt.setBigDecimal(11, advanceAdjusted);
+            pt.setInt(12, paymentId);
             if (notes != null && notes.trim().length() > 0) {
-                pt.setString(11, notes.trim());
+                pt.setString(13, notes.trim());
             } else {
-                pt.setNull(11, java.sql.Types.LONGVARCHAR);
+                pt.setNull(13, java.sql.Types.LONGVARCHAR);
             }
-            pt.setInt(12, userId);
+            pt.setInt(14, userId);
             pt.executeUpdate();
             int exchangeId = insertGeneratedId(pt);
             pt.close();
@@ -609,7 +678,8 @@ public class exchangeBean {
             }
 
             BigDecimal[] accountBalances = new BigDecimal[4];
-            applyExchangeCustomerBalance(con, customerId, exchangeType, balanceAmount, accountBalances);
+            applyExchangeAccountUpdates(con, customerId, exchangeType, dueAdjusted, advanceAdjusted,
+                balanceAmount, accountBalances);
             insertBillLedger(con, customerId, exchangeId,
                 accountBalances[0], accountBalances[1],
                 accountBalances[2], accountBalances[3],
@@ -1096,34 +1166,51 @@ public class exchangeBean {
         try {
             con = util.DBConnectionManager.getConnectionFromPool();
             pt = con.prepareStatement(
-                "SELECT txn_id, created_at, customer_name, phone_number, txn_type, amount, payment_method, details, user_name " +
+                "SELECT txn_id, created_at, customer_name, phone_number, txn_type, amount, payment_method, " +
+                "details, user_name, bill_amount, paid_amount, balance_amount, due_adjusted, advance_adjusted, notes " +
                 "FROM (" +
                 "  SELECT a.id AS txn_id, a.created_at, cu.name AS customer_name, cu.phone_number, " +
-                "    'Advance' AS txn_type, a.amount, pm.name AS payment_method, a.notes AS details, NULL AS user_name " +
+                "    'Advance' AS txn_type, a.amount, pm.name AS payment_method, " +
+                "    'Purchase balance added' AS details, NULL AS user_name, " +
+                "    a.amount AS bill_amount, a.amount AS paid_amount, 0 AS balance_amount, " +
+                "    0 AS due_adjusted, 0 AS advance_adjusted, a.notes " +
                 "  FROM ce_cus_advance a " +
                 "  INNER JOIN ce_customer cu ON cu.id = a.customer_id " +
                 "  LEFT JOIN ce_payment_method pm ON pm.id = a.payment_id " +
                 "  WHERE DATE(a.created_at) BETWEEN ? AND ? " +
                 "  UNION ALL " +
                 "  SELECT d.id, d.created_at, cu.name, cu.phone_number, " +
-                "    'Due', d.amount, pm.name, d.notes, NULL " +
+                "    'Due', d.amount, pm.name, 'Customer due added', NULL, " +
+                "    d.amount, d.amount, 0, 0, 0, d.notes " +
                 "  FROM ce_cus_due d " +
                 "  INNER JOIN ce_customer cu ON cu.id = d.customer_id " +
                 "  LEFT JOIN ce_payment_method pm ON pm.id = d.payment_id " +
                 "  WHERE DATE(d.created_at) BETWEEN ? AND ? " +
                 "  UNION ALL " +
                 "  SELECT dc.id, dc.created_at, cu.name, cu.phone_number, " +
-                "    'Due Collection', dc.amount, pm.name, dc.notes, NULL " +
+                "    'Due Collection', dc.amount, pm.name, 'Due collection received', NULL, " +
+                "    dc.amount, dc.amount, 0, 0, 0, dc.notes " +
                 "  FROM ce_cus_due_collection dc " +
                 "  INNER JOIN ce_customer cu ON cu.id = dc.customer_id " +
                 "  LEFT JOIN ce_payment_method pm ON pm.id = dc.payment_id " +
                 "  WHERE DATE(dc.created_at) BETWEEN ? AND ? " +
                 "  UNION ALL " +
+                "  SELECT ap.id, ap.created_at, cu.name, cu.phone_number, " +
+                "    'Purchase Balance Pay', ap.amount, pm.name, 'Purchase balance paid to customer', NULL, " +
+                "    ap.amount, ap.amount, 0, 0, 0, ap.notes " +
+                "  FROM ce_cus_advance_payment ap " +
+                "  INNER JOIN ce_customer cu ON cu.id = ap.customer_id " +
+                "  LEFT JOIN ce_payment_method pm ON pm.id = ap.payment_id " +
+                "  WHERE DATE(ap.created_at) BETWEEN ? AND ? " +
+                "  UNION ALL " +
                 "  SELECT e.id, e.created_at, cu.name, cu.phone_number, " +
                 "    CASE e.exchange_type WHEN 1 THEN 'Exchange - Purchase' WHEN 2 THEN 'Exchange - Sale' END, " +
                 "    e.counter_amount, pm.name, " +
-                "    CONCAT(c.currency_code, ' ', e.amount, ' / ', cc.currency_code, ' ', e.counter_amount), " +
-                "    u.user_name " +
+                "    CONCAT(c.currency_code, ' ', e.amount, ' @ ', ROUND(e.counter_amount / e.amount, 4), " +
+                "      ' = ', cc.currency_code, ' ', e.counter_amount), " +
+                "    u.user_name, " +
+                "    e.counter_amount, e.paid, e.balance, " +
+                "    COALESCE(e.due_adjusted, 0), COALESCE(e.advance_adjusted, 0), e.notes " +
                 "  FROM ce_currency_exchange e " +
                 "  INNER JOIN ce_customer cu ON cu.id = e.customer_id " +
                 "  INNER JOIN ce_currency c ON c.id = e.currency_id " +
@@ -1132,15 +1219,16 @@ public class exchangeBean {
                 "  LEFT JOIN users u ON u.id = e.uid " +
                 "  WHERE e.is_cancelled = 0 AND e.exchange_date BETWEEN ? AND ? " +
                 "  UNION ALL " +
-                "  SELECT ee.id, ee.exc_date_time, NULL, NULL, " +
+                "  SELECT ee.id, ee.exc_date_time, '-', NULL, " +
                 "    'Expense', ee.amount, pm.name, " +
-                "    CONCAT(COALESCE(et.type, 'Expense'), ' - ', ee.content), u.user_name " +
+                "    CONCAT(COALESCE(et.type, 'Expense'), IF(ee.content IS NOT NULL AND ee.content <> '', CONCAT(' - ', ee.content), '')), " +
+                "    u.user_name, ee.amount, ee.amount, 0, 0, 0, ee.content " +
                 "  FROM expense_entry ee " +
                 "  LEFT JOIN expense_type et ON et.id = ee.exp_type " +
                 "  LEFT JOIN ce_payment_method pm ON pm.id = ee.payment_id " +
                 "  LEFT JOIN users u ON u.id = ee.uid " +
                 "  WHERE ee.is_active = 1 AND DATE(ee.exc_date_time) BETWEEN ? AND ? " +
-                ") t ORDER BY created_at DESC, txn_id DESC"
+                ") t ORDER BY created_at ASC, txn_id ASC"
             );
             pt.setString(1, fromDate);
             pt.setString(2, toDate);
@@ -1152,10 +1240,12 @@ public class exchangeBean {
             pt.setString(8, toDate);
             pt.setString(9, fromDate);
             pt.setString(10, toDate);
+            pt.setString(11, fromDate);
+            pt.setString(12, toDate);
             rs = pt.executeQuery();
             while (rs.next()) {
                 Vector row = new Vector();
-                row.addElement(rs.getInt("txn_id"));
+                row.addElement(Integer.valueOf(rs.getInt("txn_id")));
                 row.addElement(rs.getTimestamp("created_at"));
                 row.addElement(rs.getString("customer_name"));
                 row.addElement(rs.getString("phone_number"));
@@ -1164,6 +1254,12 @@ public class exchangeBean {
                 row.addElement(rs.getString("payment_method"));
                 row.addElement(rs.getString("details"));
                 row.addElement(rs.getString("user_name"));
+                row.addElement(safeAmount(rs.getBigDecimal("bill_amount")));
+                row.addElement(safeAmount(rs.getBigDecimal("paid_amount")));
+                row.addElement(safeAmount(rs.getBigDecimal("balance_amount")));
+                row.addElement(safeAmount(rs.getBigDecimal("due_adjusted")));
+                row.addElement(safeAmount(rs.getBigDecimal("advance_adjusted")));
+                row.addElement(rs.getString("notes"));
                 list.addElement(row);
             }
             return list;

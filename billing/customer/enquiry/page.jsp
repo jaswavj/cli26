@@ -189,6 +189,7 @@ if (msg != null) {
                                 <th>Type</th>
                                 <th>Payment</th>
                                 <th class="text-end">Bill Amount</th>
+                                <th class="text-end">Adjusted</th>
                                 <th class="text-end">Paid</th>
                                 <th class="text-end">Balance</th>
                                 <th class="text-end">Final Adv</th>
@@ -198,7 +199,7 @@ if (msg != null) {
                         </thead>
                         <tbody id="entriesBody">
                             <tr>
-                                <td colspan="9" class="text-center py-4 text-muted">No entries found</td>
+                                <td colspan="10" class="text-center py-4 text-muted">No entries found</td>
                             </tr>
                         </tbody>
                     </table>
@@ -561,7 +562,7 @@ if (msg != null) {
         tbody.innerHTML = '';
 
         if (!entries || entries.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">No entries found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-muted">No entries found</td></tr>';
             return;
         }
 
@@ -573,12 +574,29 @@ if (msg != null) {
             else if (typeText === 'due') badgeClass = 'entry-badge-due';
 
             let billAmountCell = formatEntryMoney(entry.amount);
+            let adjustedCell = '-';
             let paidCell = '-';
             let balanceCell = '-';
+            let notesCell = entry.notes ? entry.notes : '-';
             if (entry.isExchange) {
                 billAmountCell = formatEntryMoney(entry.billAmount);
                 paidCell = formatEntryMoney(entry.paid);
                 balanceCell = formatEntryMoney(entry.balance);
+                const dueAdj = parseFloat(entry.dueAdjusted || '0') || 0;
+                const advAdj = parseFloat(entry.advanceAdjusted || '0') || 0;
+                if (dueAdj > 0) {
+                    adjustedCell = 'Due ' + dueAdj.toFixed(2);
+                } else if (advAdj > 0) {
+                    adjustedCell = 'Adv ' + advAdj.toFixed(2);
+                }
+                if (dueAdj > 0 || advAdj > 0) {
+                    const adjustNote = dueAdj > 0
+                        ? ('Due adjusted ' + dueAdj.toFixed(2))
+                        : ('Purchase balance adjusted ' + advAdj.toFixed(2));
+                    notesCell = notesCell && notesCell !== '-'
+                        ? (notesCell + ' | ' + adjustNote)
+                        : adjustNote;
+                }
             }
 
             const tr = document.createElement('tr');
@@ -587,11 +605,12 @@ if (msg != null) {
                 '<td><span class="badge ' + badgeClass + '">' + entry.type + '</span></td>' +
                 '<td>' + (entry.paymentMethod || '-') + '</td>' +
                 '<td class="text-end fw-semibold">' + billAmountCell + '</td>' +
+                '<td class="text-end">' + adjustedCell + '</td>' +
                 '<td class="text-end">' + paidCell + '</td>' +
                 '<td class="text-end fw-semibold">' + balanceCell + '</td>' +
                 '<td class="text-end">' + (entry.finalAdvance || '0') + '</td>' +
                 '<td class="text-end">' + (entry.finalDue || '0') + '</td>' +
-                '<td>' + (entry.notes ? entry.notes : '-') + '</td>';
+                '<td>' + notesCell + '</td>';
             tbody.appendChild(tr);
         });
     }

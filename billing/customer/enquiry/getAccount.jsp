@@ -48,13 +48,17 @@
             entry.put("due", dueBefore != null ? dueBefore.toPlainString() : "0");
             entry.put("finalDue", dueFinal != null ? dueFinal.toPlainString() : "0");
             entry.put("paymentMethod", row.size() > 8 && row.elementAt(8) != null ? row.elementAt(8).toString() : "-");
-            if (row.size() > 14 && row.elementAt(14) != null && Integer.parseInt(row.elementAt(14).toString()) == 4) {
+            if (row.size() > 16 && row.elementAt(16) != null && Integer.parseInt(row.elementAt(16).toString()) == 4) {
                 BigDecimal billAmount = (BigDecimal) row.elementAt(11);
                 BigDecimal paidAmount = (BigDecimal) row.elementAt(12);
                 BigDecimal balanceAmount = (BigDecimal) row.elementAt(13);
+                BigDecimal dueAdjusted = (BigDecimal) row.elementAt(14);
+                BigDecimal advanceAdjusted = (BigDecimal) row.elementAt(15);
                 entry.put("billAmount", billAmount != null ? billAmount.toPlainString() : "0");
                 entry.put("paid", paidAmount != null ? paidAmount.toPlainString() : "0");
                 entry.put("balance", balanceAmount != null ? balanceAmount.toPlainString() : "0");
+                entry.put("dueAdjusted", dueAdjusted != null ? dueAdjusted.toPlainString() : "0");
+                entry.put("advanceAdjusted", advanceAdjusted != null ? advanceAdjusted.toPlainString() : "0");
                 entry.put("isExchange", true);
             } else {
                 entry.put("isExchange", false);

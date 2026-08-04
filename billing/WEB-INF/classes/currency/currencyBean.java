@@ -1318,6 +1318,8 @@ public class currencyBean {
                 "e.counter_amount AS bill_amount, " +
                 "e.paid AS paid_amount, " +
                 "e.balance AS balance_amount, " +
+                "e.due_adjusted AS due_adjusted_amount, " +
+                "e.advance_adjusted AS advance_adjusted_amount, " +
                 "COALESCE(a.notes, d.notes, c.notes, ap.notes, e.notes) AS notes, " +
                 "l.created_at, l.advance, l.final_advance, l.due, l.final_due, " +
                 "COALESCE(pm.name, '-') AS payment_method, l.is_cash, l.is_bank, l.bill_type " +
@@ -1350,6 +1352,8 @@ public class currencyBean {
                 row.addElement(rs.getBigDecimal("bill_amount"));
                 row.addElement(rs.getBigDecimal("paid_amount"));
                 row.addElement(rs.getBigDecimal("balance_amount"));
+                row.addElement(rs.getBigDecimal("due_adjusted_amount"));
+                row.addElement(rs.getBigDecimal("advance_adjusted_amount"));
                 row.addElement(Integer.valueOf(rs.getInt("bill_type")));
                 list.addElement(row);
             }

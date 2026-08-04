@@ -48,6 +48,25 @@ if (msg != null) {
             color: var(--bill-navy, #1e3a5f);
             margin-bottom: 10px;
         }
+        .customer-balance-panel {
+            display: none;
+            border: 1px solid #dbeafe;
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            background: #eff6ff;
+        }
+        .customer-balance-panel .balance-item {
+            font-size: 0.92rem;
+        }
+        .customer-balance-panel .balance-value {
+            font-weight: 700;
+        }
+        .adjust-hint {
+            font-size: 0.8rem;
+            color: #0369a1;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -78,6 +97,18 @@ if (msg != null) {
                                 <div id="searchResults" class="search-results"></div>
                             </div>
                             <small class="text-muted">If customer not found, enter name and phone — a new record will be created on save.</small>
+                        </div>
+
+                        <div id="customerBalancePanel" class="customer-balance-panel">
+                            <div class="row g-2">
+                                <div class="col-md-6 balance-item">
+                                    Purchase Balance (Advance): <span id="customerAdvanceDisplay" class="balance-value text-success">0.0000</span>
+                                </div>
+                                <div class="col-md-6 balance-item">
+                                    Due (Customer Balance): <span id="customerDueDisplay" class="balance-value text-danger">0.0000</span>
+                                </div>
+                            </div>
+                            <div id="adjustHint" class="adjust-hint"></div>
                         </div>
 
                         <div class="row g-2 mb-3">
@@ -154,11 +185,15 @@ if (msg != null) {
                         </div>
 
                         <div class="row g-2 mb-3">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label class="form-label fw-semibold" id="paidLabel">Paid</label>
                                 <input type="number" step="0.0001" min="0" name="paid" id="paid" class="form-control fg-inp" placeholder="0.0000" value="0">
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" id="adjustedLabel">Adjusted</label>
+                                <input type="number" step="0.0001" min="0" id="adjustedAmount" class="form-control fg-inp bg-light" placeholder="0.0000" value="0" readonly>
+                            </div>
+                            <div class="col-md-4">
                                 <label class="form-label fw-semibold" id="balanceLabel">Balance</label>
                                 <input type="number" step="0.0001" min="0" name="balance" id="balance" class="form-control fg-inp bg-light" placeholder="0.0000" value="0" readonly>
                                 <div id="balanceHint" class="limit-hint"></div>
@@ -213,7 +248,15 @@ if (msg != null) {
     const rateLimitHint = document.getElementById('rateLimitHint');
     const calculatedHint = document.getElementById('calculatedHint');
     const exchangeRateLabel = document.getElementById('exchangeRateLabel');
+    const customerBalancePanel = document.getElementById('customerBalancePanel');
+    const customerAdvanceDisplay = document.getElementById('customerAdvanceDisplay');
+    const customerDueDisplay = document.getElementById('customerDueDisplay');
+    const adjustHint = document.getElementById('adjustHint');
+    const adjustedAmountInput = document.getElementById('adjustedAmount');
+    const adjustedLabel = document.getElementById('adjustedLabel');
     let syncingPaid = false;
+    let customerAdvance = 0;
+    let customerDue = 0;
 
     let pairLimits = { min: 0, max: 0, hasLimit: false };
 
@@ -289,24 +332,87 @@ if (msg != null) {
         updateCurrencyHints();
     }
 
+    function getAdjustmentAmount(total) {
+        const isPurchase = document.getElementById('typePurchase').checked;
+        if (isPurchase) {
+            return Math.min(customerDue, total);
+        }
+        return Math.min(customerAdvance, total);
+    }
+
+    function loadCustomerBalances(customerId) {
+        if (!customerId) {
+            customerAdvance = 0;
+            customerDue = 0;
+            customerBalancePanel.style.display = 'none';
+            adjustHint.textContent = '';
+            syncPaidBalance(true);
+            return;
+        }
+        fetch(contextPath + '/exchange/getCustomerBalance.jsp?customerId=' + encodeURIComponent(customerId))
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data && data.success) {
+                    customerAdvance = parseFloat(data.advance || '0') || 0;
+                    customerDue = parseFloat(data.due || '0') || 0;
+                    customerAdvanceDisplay.textContent = customerAdvance.toFixed(4);
+                    customerDueDisplay.textContent = customerDue.toFixed(4);
+                    customerBalancePanel.style.display = 'block';
+                    syncPaidBalance(true);
+                } else {
+                    customerAdvance = 0;
+                    customerDue = 0;
+                    customerBalancePanel.style.display = 'none';
+                    syncPaidBalance(true);
+                }
+            })
+            .catch(function() {
+                customerAdvance = 0;
+                customerDue = 0;
+                customerBalancePanel.style.display = 'none';
+                syncPaidBalance(true);
+            });
+    }
+
     function syncPaidBalance(resetPaid) {
         const total = parseFloat(counterAmountInput.value) || 0;
+        const isPurchase = document.getElementById('typePurchase').checked;
+        const adjusted = getAdjustmentAmount(total);
+        const payableAfterAdjust = Math.max(0, total - adjusted);
+
+        adjustedAmountInput.value = adjusted > 0 ? adjusted.toFixed(4) : '0';
+        adjustedLabel.textContent = isPurchase ? 'Due Adjusted' : 'Advance Adjusted';
+
+        if (adjusted > 0) {
+            if (isPurchase) {
+                adjustHint.textContent = 'Due ' + adjusted.toFixed(4) + ' will be adjusted against this bill. Pay/collect up to ' + payableAfterAdjust.toFixed(4) + '.';
+            } else {
+                adjustHint.textContent = 'Purchase balance ' + adjusted.toFixed(4) + ' will be adjusted against this bill. Collect up to ' + payableAfterAdjust.toFixed(4) + '.';
+            }
+        } else if (document.getElementById('customerId').value) {
+            adjustHint.textContent = isPurchase
+                ? 'No due balance to adjust on this bill.'
+                : 'No purchase balance to adjust on this bill.';
+        } else {
+            adjustHint.textContent = '';
+        }
+
         if (resetPaid) {
             syncingPaid = true;
-            paidInput.value = total > 0 ? total.toFixed(4) : '0';
+            paidInput.value = payableAfterAdjust > 0 ? payableAfterAdjust.toFixed(4) : '0';
             syncingPaid = false;
         }
         let paid = parseFloat(paidInput.value);
         if (isNaN(paid) || paid < 0) paid = 0;
-        if (paid > total) {
-            paid = total;
+        if (paid > payableAfterAdjust) {
+            paid = payableAfterAdjust;
             if (!syncingPaid) {
                 syncingPaid = true;
-                paidInput.value = total.toFixed(4);
+                paidInput.value = payableAfterAdjust.toFixed(4);
                 syncingPaid = false;
             }
         }
-        const bal = Math.max(0, total - paid);
+        const bal = Math.max(0, payableAfterAdjust - paid);
         balanceInput.value = bal.toFixed(4);
         updateBalanceHint(bal);
         updateCounterHints();
@@ -445,7 +551,10 @@ if (msg != null) {
     }
 
     document.querySelectorAll('input[name="exchangeType"]').forEach(function(el) {
-        el.addEventListener('change', updateTypeLabels);
+        el.addEventListener('change', function() {
+            updateTypeLabels();
+            syncPaidBalance(true);
+        });
     });
 
     currencySelect.addEventListener('change', function() {
@@ -463,6 +572,7 @@ if (msg != null) {
         clearTimeout(searchTimer);
         document.getElementById('customerId').value = '';
         document.getElementById('customerName').value = this.value.trim();
+        loadCustomerBalances('');
         const query = this.value.trim();
         if (query.length < 1) {
             searchResults.style.display = 'none';
@@ -486,6 +596,7 @@ if (msg != null) {
                                 searchInput.value = item.name;
                                 document.getElementById('customerPhone').value = item.phone || '';
                                 searchResults.style.display = 'none';
+                                loadCustomerBalances(item.id);
                             });
                             searchResults.appendChild(div);
                         });
@@ -507,6 +618,8 @@ if (msg != null) {
         const rate = parseFloat(exchangeRateInput.value);
         const counterAmt = parseFloat(counterAmountInput.value);
         const paidAmt = parseFloat(paidInput.value);
+        const adjustedAmt = parseFloat(adjustedAmountInput.value) || 0;
+        const payableAfterAdjust = Math.max(0, counterAmt - adjustedAmt);
         const balAmt = parseFloat(balanceInput.value) || 0;
         const isSale = document.getElementById('typeSale').checked;
         const isPurchase = document.getElementById('typePurchase').checked;
@@ -550,13 +663,13 @@ if (msg != null) {
             return;
         }
 
-        if (paidAmt > counterAmt) {
+        if (paidAmt > payableAfterAdjust + 0.0001) {
             e.preventDefault();
-            alert('Paid amount cannot exceed ' + (isPurchase ? 'paying' : 'receiving') + ' amount');
+            alert('Paid amount cannot exceed ' + payableAfterAdjust.toFixed(4) + ' after balance adjustment');
             return;
         }
 
-        const expectedBal = Math.round((counterAmt - paidAmt) * 10000) / 10000;
+        const expectedBal = Math.round((payableAfterAdjust - paidAmt) * 10000) / 10000;
         if (Math.abs(balAmt - expectedBal) > 0.0001) {
             syncPaidBalance(false);
         }
@@ -594,9 +707,14 @@ if (msg != null) {
         setTimeout(function() {
             document.getElementById('customerId').value = '';
             document.getElementById('customerName').value = '';
+            customerAdvance = 0;
+            customerDue = 0;
+            customerBalancePanel.style.display = 'none';
+            adjustHint.textContent = '';
             exchangeRateInput.value = '';
             counterAmountInput.value = '';
             paidInput.value = '0';
+            adjustedAmountInput.value = '0';
             balanceInput.value = '0';
             balanceHint.textContent = '';
             fetchPairLimits().then(function() {

@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS ce_currency_exchange (
     counter_amount DECIMAL(18, 4) NOT NULL,
     paid DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
     balance DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
+    due_adjusted DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
+    advance_adjusted DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
     payment_id INT NOT NULL,
     notes TEXT NULL,
     uid INT NOT NULL,
