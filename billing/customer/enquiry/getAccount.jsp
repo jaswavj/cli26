@@ -48,6 +48,17 @@
             entry.put("due", dueBefore != null ? dueBefore.toPlainString() : "0");
             entry.put("finalDue", dueFinal != null ? dueFinal.toPlainString() : "0");
             entry.put("paymentMethod", row.size() > 8 && row.elementAt(8) != null ? row.elementAt(8).toString() : "-");
+            if (row.size() > 14 && row.elementAt(14) != null && Integer.parseInt(row.elementAt(14).toString()) == 4) {
+                BigDecimal billAmount = (BigDecimal) row.elementAt(11);
+                BigDecimal paidAmount = (BigDecimal) row.elementAt(12);
+                BigDecimal balanceAmount = (BigDecimal) row.elementAt(13);
+                entry.put("billAmount", billAmount != null ? billAmount.toPlainString() : "0");
+                entry.put("paid", paidAmount != null ? paidAmount.toPlainString() : "0");
+                entry.put("balance", balanceAmount != null ? balanceAmount.toPlainString() : "0");
+                entry.put("isExchange", true);
+            } else {
+                entry.put("isExchange", false);
+            }
             entries.put(entry);
         }
 

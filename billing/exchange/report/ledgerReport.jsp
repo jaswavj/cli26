@@ -455,6 +455,7 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
                                     <th>Description</th>
                                     <th class="text-end">Cash In</th>
                                     <th class="text-end">Cash Out</th>
+                                    <th class="text-end">Credit</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -462,24 +463,28 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
                                     <td>Opening Balance</td>
                                     <td class="text-end"><%= formatLedgerBalance(dayOpening) %></td>
                                     <td class="text-end"></td>
+                                    <td class="text-end"></td>
                                 </tr>
                                 <% if (dayBookSummary.size() > 0) {
                                     for (int i = 0; i < dayBookSummary.size(); i++) {
                                         Vector row = (Vector) dayBookSummary.get(i);
                                         BigDecimal dayIn = (BigDecimal) row.elementAt(1);
                                         BigDecimal dayOut = (BigDecimal) row.elementAt(2);
+                                        BigDecimal dayCredit = row.size() > 3 ? (BigDecimal) row.elementAt(3) : BigDecimal.ZERO;
                                 %>
                                 <tr>
                                     <td><%= row.elementAt(0) %></td>
                                     <td class="text-end"><%= formatLedgerCell(dayIn) %></td>
                                     <td class="text-end"><%= formatLedgerCell(dayOut) %></td>
+                                    <td class="text-end"><%= formatLedgerCell(dayCredit) %></td>
                                 </tr>
                                 <%  } } else { %>
-                                <tr><td colspan="3" class="text-center py-4 text-muted">No entries found</td></tr>
+                                <tr><td colspan="4" class="text-center py-4 text-muted">No entries found</td></tr>
                                 <% } %>
                                 <tr class="balance-row">
                                     <td>Closing Balance</td>
                                     <td class="text-end"><%= formatLedgerBalance(dayClosing) %></td>
+                                    <td class="text-end"></td>
                                     <td class="text-end"></td>
                                 </tr>
                             </tbody>

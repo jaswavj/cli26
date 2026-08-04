@@ -889,7 +889,7 @@ public class exchangeBean {
         try {
             con = util.DBConnectionManager.getConnectionFromPool();
             pt = con.prepareStatement(
-                "SELECT description, SUM(cash_in) AS cash_in, SUM(cash_out) AS cash_out FROM (" +
+                "SELECT description, SUM(cash_in) AS cash_in, SUM(cash_out) AS cash_out, SUM(credit) AS credit FROM (" +
                 "  SELECT " +
                 "    CASE " +
                 "      WHEN l.bill_type = 3 THEN 'Due Collection' " +
@@ -908,13 +908,19 @@ public class exchangeBean {
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 1 THEN (l.is_cash + l.is_bank) " +
                 "      WHEN l.bill_type IN (5, 6) THEN (l.is_cash + l.is_bank) " +
                 "      ELSE 0 " +
-                "    END AS cash_out " +
+                "    END AS cash_out, " +
+                "    CASE " +
+                "      WHEN l.bill_type = 4 AND COALESCE(e.balance, 0) > 0 THEN e.balance " +
+                "      ELSE 0 " +
+                "    END AS credit " +
                 "  FROM ce_bill_ledger l " +
                 "  INNER JOIN ce_bill_type bt ON bt.id = l.bill_type " +
                 "  LEFT JOIN ce_currency_exchange e ON l.bill_type = 4 AND e.id = l.bill_id AND e.is_cancelled = 0 " +
-                "  WHERE DATE(l.created_at) BETWEEN ? AND ? AND (l.is_cash > 0 OR l.is_bank > 0) " +
+                "  WHERE DATE(l.created_at) BETWEEN ? AND ? " +
                 "    AND l.bill_type NOT IN (1, 2) " +
+                "    AND ((l.is_cash + l.is_bank) > 0 OR (l.bill_type = 4 AND COALESCE(e.balance, 0) > 0)) " +
                 ") t GROUP BY description " +
+                "HAVING SUM(cash_in) > 0 OR SUM(cash_out) > 0 OR SUM(credit) > 0 " +
                 "ORDER BY FIELD(description, 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense', 'Purchase Balance Pay')"
             );
             pt.setString(1, fromDate);
@@ -925,6 +931,7 @@ public class exchangeBean {
                 row.addElement(rs.getString("description"));
                 row.addElement(safeAmount(rs.getBigDecimal("cash_in")));
                 row.addElement(safeAmount(rs.getBigDecimal("cash_out")));
+                row.addElement(safeAmount(rs.getBigDecimal("credit")));
                 list.addElement(row);
             }
             return list;

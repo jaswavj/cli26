@@ -87,6 +87,7 @@ if (msg != null) {
         .entry-badge-advance { background: #d1fae5; color: #065f46; }
         .entry-badge-due { background: #fee2e2; color: #991b1b; }
         .entry-badge-collection { background: #dbeafe; color: #1e40af; }
+        .entry-badge-exchange { background: #e0e7ff; color: #3730a3; }
         .entries-panel { max-height: 520px; overflow-y: auto; }
         .account-card-body { display: flex; flex-direction: row; gap: 8px; }
         .account-card-body .balance-card { flex: 1; min-width: 0; }
@@ -187,7 +188,9 @@ if (msg != null) {
                                 <th>Date</th>
                                 <th>Type</th>
                                 <th>Payment</th>
-                                <th class="text-end">Amount</th>
+                                <th class="text-end">Bill Amount</th>
+                                <th class="text-end">Paid</th>
+                                <th class="text-end">Balance</th>
                                 <th class="text-end">Final Adv</th>
                                 <th class="text-end">Final Due</th>
                                 <th>Notes</th>
@@ -195,7 +198,7 @@ if (msg != null) {
                         </thead>
                         <tbody id="entriesBody">
                             <tr>
-                                <td colspan="7" class="text-center py-4 text-muted">No entries found</td>
+                                <td colspan="9" class="text-center py-4 text-muted">No entries found</td>
                             </tr>
                         </tbody>
                     </table>
@@ -546,27 +549,46 @@ if (msg != null) {
         new bootstrap.Modal(document.getElementById('collectDueModal')).show();
     }
 
+    function formatEntryMoney(value) {
+        if (value === null || value === undefined || value === '') return '-';
+        var num = parseFloat(value);
+        if (isNaN(num) || num === 0) return '-';
+        return num.toFixed(2);
+    }
+
     function renderEntries(entries) {
         const tbody = document.getElementById('entriesBody');
         tbody.innerHTML = '';
 
         if (!entries || entries.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No entries found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">No entries found</td></tr>';
             return;
         }
 
         entries.forEach(function(entry) {
             let badgeClass = 'entry-badge-collection';
             const typeText = (entry.type || '').toLowerCase();
-            if (typeText === 'advance' || typeText.indexOf('purchase') >= 0) badgeClass = 'entry-badge-advance';
+            if (typeText.indexOf('exchange') >= 0) badgeClass = 'entry-badge-exchange';
+            else if (typeText === 'advance' || typeText.indexOf('purchase') >= 0) badgeClass = 'entry-badge-advance';
             else if (typeText === 'due') badgeClass = 'entry-badge-due';
+
+            let billAmountCell = formatEntryMoney(entry.amount);
+            let paidCell = '-';
+            let balanceCell = '-';
+            if (entry.isExchange) {
+                billAmountCell = formatEntryMoney(entry.billAmount);
+                paidCell = formatEntryMoney(entry.paid);
+                balanceCell = formatEntryMoney(entry.balance);
+            }
 
             const tr = document.createElement('tr');
             tr.innerHTML =
                 '<td>' + (entry.date || '-') + '</td>' +
                 '<td><span class="badge ' + badgeClass + '">' + entry.type + '</span></td>' +
                 '<td>' + (entry.paymentMethod || '-') + '</td>' +
-                '<td class="text-end fw-semibold">' + entry.amount + '</td>' +
+                '<td class="text-end fw-semibold">' + billAmountCell + '</td>' +
+                '<td class="text-end">' + paidCell + '</td>' +
+                '<td class="text-end fw-semibold">' + balanceCell + '</td>' +
                 '<td class="text-end">' + (entry.finalAdvance || '0') + '</td>' +
                 '<td class="text-end">' + (entry.finalDue || '0') + '</td>' +
                 '<td>' + (entry.notes ? entry.notes : '-') + '</td>';

@@ -1310,19 +1310,25 @@ public class currencyBean {
                 "  WHEN 1 THEN 'Advance' " +
                 "  WHEN 2 THEN 'Due' " +
                 "  WHEN 3 THEN 'Due Collection' " +
+                "  WHEN 4 AND e.exchange_type = 1 THEN 'Exchange - Purchase' " +
+                "  WHEN 4 AND e.exchange_type = 2 THEN 'Exchange - Sale' " +
                 "  WHEN 6 THEN 'Purchase Balance Pay' " +
                 "  ELSE bt.name END AS entry_type, " +
-                "COALESCE(a.amount, d.amount, c.amount, ap.amount) AS amount, " +
-                "COALESCE(a.notes, d.notes, c.notes, ap.notes) AS notes, " +
+                "COALESCE(a.amount, d.amount, c.amount, ap.amount, e.counter_amount) AS amount, " +
+                "e.counter_amount AS bill_amount, " +
+                "e.paid AS paid_amount, " +
+                "e.balance AS balance_amount, " +
+                "COALESCE(a.notes, d.notes, c.notes, ap.notes, e.notes) AS notes, " +
                 "l.created_at, l.advance, l.final_advance, l.due, l.final_due, " +
-                "COALESCE(pm.name, '-') AS payment_method, l.is_cash, l.is_bank " +
+                "COALESCE(pm.name, '-') AS payment_method, l.is_cash, l.is_bank, l.bill_type " +
                 "FROM ce_bill_ledger l " +
                 "INNER JOIN ce_bill_type bt ON bt.id = l.bill_type " +
                 "LEFT JOIN ce_cus_advance a ON l.bill_type = 1 AND a.id = l.bill_id " +
                 "LEFT JOIN ce_cus_due d ON l.bill_type = 2 AND d.id = l.bill_id " +
                 "LEFT JOIN ce_cus_due_collection c ON l.bill_type = 3 AND c.id = l.bill_id " +
                 "LEFT JOIN ce_cus_advance_payment ap ON l.bill_type = 6 AND ap.id = l.bill_id " +
-                "LEFT JOIN ce_payment_method pm ON pm.id = COALESCE(l.payment_id, a.payment_id, d.payment_id, c.payment_id, ap.payment_id) " +
+                "LEFT JOIN ce_currency_exchange e ON l.bill_type = 4 AND e.id = l.bill_id AND e.is_cancelled = 0 " +
+                "LEFT JOIN ce_payment_method pm ON pm.id = COALESCE(l.payment_id, a.payment_id, d.payment_id, c.payment_id, ap.payment_id, e.payment_id) " +
                 "WHERE l.customer_id = ? " +
                 "ORDER BY l.created_at DESC, l.id DESC"
             );
@@ -1341,6 +1347,10 @@ public class currencyBean {
                 row.addElement(rs.getString("payment_method"));
                 row.addElement(rs.getBigDecimal("is_cash"));
                 row.addElement(rs.getBigDecimal("is_bank"));
+                row.addElement(rs.getBigDecimal("bill_amount"));
+                row.addElement(rs.getBigDecimal("paid_amount"));
+                row.addElement(rs.getBigDecimal("balance_amount"));
+                row.addElement(Integer.valueOf(rs.getInt("bill_type")));
                 list.addElement(row);
             }
             return list;
