@@ -623,17 +623,23 @@ public class exchangeBean {
             if (baseCurrencyId <= 0) {
                 throw new Exception("Base currency is not configured in Currency Master");
             }
-            if (currencyId == baseCurrencyId) {
-                throw new Exception("Main currency cannot be the base currency");
-            }
             counterCurrencyId = baseCurrencyId;
+            boolean baseToBase = (currencyId == baseCurrencyId);
+
+            if (baseToBase) {
+                if (amount.compareTo(counterAmount) != 0) {
+                    throw new Exception("For base currency purchase/sale, amount and base amount must be equal (rate 1)");
+                }
+            }
 
             int isCash = getPaymentMethodIsCash(con, paymentId);
             String counterCode = getCurrencyCode(con, counterCurrencyId);
 
-            validateExchangeRate(con, currencyId, counterCurrencyId,
-                counterAmount.divide(amount, 4, java.math.RoundingMode.HALF_UP),
-                getCurrencyCode(con, currencyId), counterCode);
+            if (!baseToBase) {
+                validateExchangeRate(con, currencyId, counterCurrencyId,
+                    counterAmount.divide(amount, 4, java.math.RoundingMode.HALF_UP),
+                    getCurrencyCode(con, currencyId), counterCode);
+            }
             BigDecimal[] cashBank = resolveCashBankAmounts(con, paymentId, paidAmount);
 
             pt = con.prepareStatement(
@@ -665,7 +671,15 @@ public class exchangeBean {
             pt.close();
             pt = null;
 
-            if (exchangeType == EXCHANGE_TYPE_PURCHASE) {
+            if (baseToBase) {
+                // Base ↔ base: rate 1. Stock follows quantity sold/purchased (not cash paid).
+                // Purchase = stock in, Sale = stock out.
+                if (exchangeType == EXCHANGE_TYPE_PURCHASE) {
+                    applyStockMovement(con, exchangeId, baseCurrencyId, true, amount);
+                } else {
+                    applyStockMovement(con, exchangeId, baseCurrencyId, false, amount);
+                }
+            } else if (exchangeType == EXCHANGE_TYPE_PURCHASE) {
                 applyStockMovement(con, exchangeId, currencyId, true, amount);
                 if (isCash == 1 && paidAmount.compareTo(BigDecimal.ZERO) > 0) {
                     applyStockMovement(con, exchangeId, counterCurrencyId, false, paidAmount);

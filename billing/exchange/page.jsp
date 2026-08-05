@@ -274,6 +274,10 @@ if (msg != null) {
         return baseCurrency ? baseCurrency.code : '';
     }
 
+    function isBaseToBase() {
+        return baseCurrencyId > 0 && String(currencySelect.value) === String(baseCurrencyId);
+    }
+
     function fetchPairLimits() {
         const mainId = currencySelect.value;
         pairLimits = { min: 0, max: 0, hasLimit: false };
@@ -282,6 +286,18 @@ if (msg != null) {
             rateLimitHint.textContent = '';
             return Promise.resolve();
         }
+
+        // Base currency ↔ base currency: fixed rate 1, no rate limits
+        if (isBaseToBase()) {
+            rateSection.style.display = 'none';
+            rateLimitHint.textContent = '';
+            exchangeRateInput.value = '1';
+            exchangeRateInput.removeAttribute('min');
+            exchangeRateInput.removeAttribute('max');
+            calculateCounterAmount();
+            return Promise.resolve();
+        }
+
         rateSection.style.display = 'block';
         const mainCode = getSelectedCode(currencySelect);
         const counterCode = getBaseCurrencyCode();
@@ -314,10 +330,26 @@ if (msg != null) {
 
     function calculateCounterAmount() {
         const amt = parseFloat(amountInput.value);
-        const rate = parseFloat(exchangeRateInput.value);
         const mainCode = getSelectedCode(currencySelect);
         const counterCode = getBaseCurrencyCode();
 
+        if (isBaseToBase()) {
+            if (!isNaN(amt) && amt > 0) {
+                exchangeRateInput.value = '1';
+                counterAmountInput.value = amt.toFixed(4);
+                calculatedHint.textContent = amt.toFixed(4) + ' ' + mainCode + ' (base ↔ base, rate 1)';
+                syncPaidBalance(true);
+            } else {
+                counterAmountInput.value = '';
+                calculatedHint.textContent = '';
+                syncPaidBalance(true);
+            }
+            updateCounterHints();
+            updateCurrencyHints();
+            return;
+        }
+
+        const rate = parseFloat(exchangeRateInput.value);
         if (!isNaN(amt) && amt > 0 && !isNaN(rate) && rate > 0) {
             const total = (amt * rate).toFixed(4);
             counterAmountInput.value = total;
@@ -478,11 +510,13 @@ if (msg != null) {
         const mainSelected = currencySelect.value;
         currencySelect.innerHTML = '<option value="">Select currency</option>';
         currenciesData.forEach(function(c) {
-            if (String(c.id) !== String(baseCurrencyId)) {
-                currencySelect.appendChild(buildCurrencyOption(c));
+            const opt = buildCurrencyOption(c);
+            if (String(c.id) === String(baseCurrencyId)) {
+                opt.textContent = c.code + ' — ' + c.name + ' (Base / Stock: ' + c.stock + ')';
             }
+            currencySelect.appendChild(opt);
         });
-        if (mainSelected && String(mainSelected) !== String(baseCurrencyId)) {
+        if (mainSelected) {
             currencySelect.value = mainSelected;
         }
         updateBaseCurrencyDisplay();
@@ -495,6 +529,18 @@ if (msg != null) {
         limitHint.textContent = '';
         if (!opt || !opt.value) {
             stockHint.textContent = '';
+            return;
+        }
+        if (isBaseToBase()) {
+            const stock = parseFloat(opt.dataset.stock || '0');
+            const amt = parseFloat(amountInput.value) || 0;
+            if (isSale) {
+                stockHint.textContent = 'Base sale: stock will decrease by ' + amt.toFixed(4) + ' (available ' + stock.toFixed(4) + ')';
+                stockHint.style.color = (amt > 0 && amt > stock) ? '#dc2626' : '#0f766e';
+            } else {
+                stockHint.textContent = 'Base purchase: stock will increase by ' + amt.toFixed(4) + ' → ' + (stock + amt).toFixed(4);
+                stockHint.style.color = '#0f766e';
+            }
             return;
         }
         const stock = parseFloat(opt.dataset.stock || '0');
@@ -523,6 +569,19 @@ if (msg != null) {
         if (!isCashPayment()) {
             counterStockHint.textContent = 'Non-cash payment — ' + counterCode + ' stock will not change';
             counterStockHint.style.color = '#64748b';
+            return;
+        }
+
+        if (isBaseToBase()) {
+            const amt = parseFloat(amountInput.value) || 0;
+            if (isPurchase) {
+                counterStockHint.textContent = 'Base purchase: ' + counterCode + ' stock increases by ' + amt.toFixed(4);
+                counterStockHint.style.color = '#0f766e';
+            } else {
+                counterStockHint.textContent = 'Base sale: ' + counterCode + ' stock decreases by ' + amt.toFixed(4)
+                    + ' (available ' + stock.toFixed(4) + ')';
+                counterStockHint.style.color = (amt > 0 && amt > stock) ? '#dc2626' : '#0f766e';
+            }
             return;
         }
 
@@ -638,23 +697,40 @@ if (msg != null) {
             return;
         }
 
-        if (!rate || rate <= 0) {
-            e.preventDefault();
-            alert('Please enter a valid exchange rate');
-            return;
-        }
+        if (isBaseToBase()) {
+            if (!amt || amt <= 0) {
+                e.preventDefault();
+                alert('Please enter a valid amount');
+                return;
+            }
+        } else {
+            if (!rate || rate <= 0) {
+                e.preventDefault();
+                alert('Please enter a valid exchange rate');
+                return;
+            }
 
-        if (pairLimits.hasLimit && (rate < pairLimits.min || rate > pairLimits.max)) {
-            e.preventDefault();
-            alert('Exchange rate must be between ' + pairLimits.min.toFixed(4) + ' and ' + pairLimits.max.toFixed(4)
-                + ' ' + counterCode + ' per 1 ' + mainCode);
-            return;
+            if (pairLimits.hasLimit && (rate < pairLimits.min || rate > pairLimits.max)) {
+                e.preventDefault();
+                alert('Exchange rate must be between ' + pairLimits.min.toFixed(4) + ' and ' + pairLimits.max.toFixed(4)
+                    + ' ' + counterCode + ' per 1 ' + mainCode);
+                return;
+            }
         }
 
         if (!counterAmt || counterAmt <= 0) {
             e.preventDefault();
             alert('Base currency amount could not be calculated. Check amount and rate.');
             return;
+        }
+
+        if (isSale && opt && opt.dataset.stock) {
+            const stock = parseFloat(opt.dataset.stock);
+            if (amt > stock) {
+                e.preventDefault();
+                alert('Insufficient sale currency stock. Available: ' + stock.toFixed(4) + ' ' + opt.dataset.code);
+                return;
+            }
         }
 
         if (isNaN(paidAmt) || paidAmt < 0) {
@@ -680,16 +756,7 @@ if (msg != null) {
             return;
         }
 
-        if (isSale && opt && opt.dataset.stock) {
-            const stock = parseFloat(opt.dataset.stock);
-            if (amt > stock) {
-                e.preventDefault();
-                alert('Insufficient sale currency stock. Available: ' + stock.toFixed(4) + ' ' + opt.dataset.code);
-                return;
-            }
-        }
-
-        if (isPurchase && isCashPayment() && baseCurrency) {
+        if (isPurchase && !isBaseToBase() && isCashPayment() && baseCurrency) {
             const counterStock = parseFloat(baseCurrency.stock || '0');
             if (paidAmt > counterStock) {
                 e.preventDefault();
