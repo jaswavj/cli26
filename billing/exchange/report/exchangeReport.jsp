@@ -2,6 +2,26 @@
 <%@ page language="java" import="java.util.*, java.math.BigDecimal, java.text.SimpleDateFormat, java.util.Date" %>
 <jsp:useBean id="exchange" class="currency.exchangeBean" />
 <jsp:useBean id="currency" class="currency.currencyBean" />
+<%!
+    private String formatReportCell(BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) == 0) {
+            return "";
+        }
+        return value.setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString();
+    }
+
+    private String formatReportAdjusted(BigDecimal dueAdjusted, BigDecimal advanceAdjusted) {
+        BigDecimal due = dueAdjusted != null ? dueAdjusted : BigDecimal.ZERO;
+        BigDecimal adv = advanceAdjusted != null ? advanceAdjusted : BigDecimal.ZERO;
+        if (due.compareTo(BigDecimal.ZERO) > 0) {
+            return "Due " + due.setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString();
+        }
+        if (adv.compareTo(BigDecimal.ZERO) > 0) {
+            return "Adv " + adv.setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString();
+        }
+        return "";
+    }
+%>
 <%
 Integer userId = (Integer) session.getAttribute("userId");
 if (userId == null) {
@@ -101,6 +121,7 @@ Vector reportData = exchange.getCurrencyExchangeReport(fromDate, toDate,
                             <th>Base</th>
                             <th class="text-end">Base Amount</th>
                             <th class="text-end">Rate</th>
+                            <th class="text-end">Adjusted</th>
                             <th class="text-end">Paid</th>
                             <th class="text-end">Balance</th>
                             <th>Payment</th>
@@ -124,15 +145,16 @@ Vector reportData = exchange.getCurrencyExchangeReport(fromDate, toDate,
                             <td class="fw-semibold"><%= row.elementAt(8) %></td>
                             <td class="text-end fw-semibold"><%= ((BigDecimal) row.elementAt(9)).toPlainString() %></td>
                             <td class="text-end"><%= ((BigDecimal) row.elementAt(10)).toPlainString() %></td>
-                            <td class="text-end"><%= ((BigDecimal) row.elementAt(11)).toPlainString() %></td>
-                            <td class="text-end"><%= ((BigDecimal) row.elementAt(12)).toPlainString() %></td>
-                            <td><%= row.elementAt(13) != null ? row.elementAt(13) : "-" %></td>
+                            <td class="text-end"><%= formatReportAdjusted((BigDecimal) row.elementAt(13), (BigDecimal) row.elementAt(14)) %></td>
+                            <td class="text-end"><%= formatReportCell((BigDecimal) row.elementAt(11)) %></td>
+                            <td class="text-end"><%= formatReportCell((BigDecimal) row.elementAt(12)) %></td>
                             <td><%= row.elementAt(15) != null ? row.elementAt(15) : "-" %></td>
-                            <td><%= row.elementAt(14) != null ? row.elementAt(14) : "-" %></td>
+                            <td><%= row.elementAt(17) != null ? row.elementAt(17) : "-" %></td>
+                            <td><%= row.elementAt(16) != null ? row.elementAt(16) : "-" %></td>
                         </tr>
                         <%  }
                            } else { %>
-                        <tr><td colspan="15" class="text-center py-4 text-muted">No exchange transactions found</td></tr>
+                        <tr><td colspan="16" class="text-center py-4 text-muted">No exchange transactions found</td></tr>
                         <% } %>
                     </tbody>
                 </table>

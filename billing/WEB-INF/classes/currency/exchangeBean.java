@@ -1282,6 +1282,7 @@ public class exchangeBean {
                 "CASE e.exchange_type WHEN 1 THEN 'Purchase' WHEN 2 THEN 'Sale' END AS exchange_type, " +
                 "c.currency_code, e.amount, cc.currency_code AS counter_code, e.counter_amount, " +
                 "COALESCE(e.paid, e.counter_amount) AS paid, COALESCE(e.balance, 0) AS balance, " +
+                "COALESCE(e.due_adjusted, 0) AS due_adjusted, COALESCE(e.advance_adjusted, 0) AS advance_adjusted, " +
                 "pm.name AS payment_method, e.notes, u.user_name " +
                 "FROM ce_currency_exchange e " +
                 "INNER JOIN ce_customer cu ON cu.id = e.customer_id " +
@@ -1316,6 +1317,8 @@ public class exchangeBean {
                 BigDecimal counterAmount = safeAmount(rs.getBigDecimal("counter_amount"));
                 BigDecimal paidAmt = safeAmount(rs.getBigDecimal("paid"));
                 BigDecimal balanceAmt = safeAmount(rs.getBigDecimal("balance"));
+                BigDecimal dueAdjusted = safeAmount(rs.getBigDecimal("due_adjusted"));
+                BigDecimal advanceAdjusted = safeAmount(rs.getBigDecimal("advance_adjusted"));
                 BigDecimal rate = BigDecimal.ZERO;
                 if (amount.compareTo(BigDecimal.ZERO) > 0) {
                     rate = counterAmount.divide(amount, 4, java.math.RoundingMode.HALF_UP);
@@ -1333,6 +1336,8 @@ public class exchangeBean {
                 row.addElement(rate);
                 row.addElement(paidAmt);
                 row.addElement(balanceAmt);
+                row.addElement(dueAdjusted);
+                row.addElement(advanceAdjusted);
                 row.addElement(rs.getString("payment_method"));
                 row.addElement(rs.getString("notes"));
                 row.addElement(rs.getString("user_name"));
