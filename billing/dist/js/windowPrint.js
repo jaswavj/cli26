@@ -72,28 +72,77 @@
     newWin.close();
 }
 
-    // Export to Excel function
-    function exportTableToExcel(tableID, filename = '') {
-        var table = document.getElementById(tableID);
-        var tableHTML = table.outerHTML.replace(/ /g, '%20');
-
-        // Specify file name
-        filename = filename ? filename + '.xlsx' : 'excel_data.xlsx';
-
-        // Create download link
-        var downloadLink = document.createElement("a");
-        document.body.appendChild(downloadLink);
-
-        if (navigator.msSaveOrOpenBlob) {
-            // For IE
-            var blob = new Blob(['\ufeff', tableHTML], { type: 'application/vnd.ms-excel' });
-            navigator.msSaveOrOpenBlob(blob, filename);
-        } else {
-            // For other browsers
-            downloadLink.href = 'data:application/vnd.ms-excel,' + tableHTML;
-            downloadLink.download = filename;
-            downloadLink.click();
+    function csvEscapeCell(val) {
+        if (val === null || val === undefined) val = '';
+        val = String(val).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        if (/[",\n]/.test(val)) {
+            return '"' + val.replace(/"/g, '""') + '"';
         }
+        return val;
+    }
+
+    function downloadCsvFile(filename, lines) {
+        filename = filename ? String(filename) : 'export';
+        filename = filename.replace(/\.(xlsx|xls|csv)$/i, '') + '.csv';
+
+        var blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        if (navigator.msSaveOrOpenBlob) {
+            navigator.msSaveOrOpenBlob(blob, filename);
+            return;
+        }
+
+        var url = URL.createObjectURL(blob);
+        var downloadLink = document.createElement('a');
+        downloadLink.href = url;
+        downloadLink.download = filename;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    }
+
+    // Export table data as CSV (opens reliably in Excel)
+    function exportTableToExcel(tableID, filename) {
+        var el = document.getElementById(tableID);
+        if (!el) return;
+
+        var lines = [];
+        var meta = el.querySelector('.print-meta');
+        if (meta) {
+            var title = meta.querySelector('h2, h3');
+            if (title) lines.push(csvEscapeCell(title.innerText.trim()));
+            meta.querySelectorAll('p').forEach(function(p) {
+                lines.push(csvEscapeCell(p.innerText.trim()));
+            });
+            meta.querySelectorAll('.balance-summary span').forEach(function(span) {
+                lines.push(csvEscapeCell(span.innerText.trim()));
+            });
+            lines.push('');
+        }
+
+        var headerBox = el.querySelector('.header-box');
+        if (headerBox && !meta) {
+            headerBox.querySelectorAll('h1, p').forEach(function(node) {
+                lines.push(csvEscapeCell(node.innerText.trim()));
+            });
+            lines.push('');
+        }
+
+        var table = el.tagName === 'TABLE' ? el : el.querySelector('table');
+        if (!table) {
+            alert('No table found to export');
+            return;
+        }
+
+        table.querySelectorAll('tr').forEach(function(tr) {
+            var cells = [];
+            tr.querySelectorAll('th, td').forEach(function(cell) {
+                cells.push(csvEscapeCell(cell.innerText.trim().replace(/\s+/g, ' ')));
+            });
+            if (cells.length) lines.push(cells.join(','));
+        });
+
+        downloadCsvFile(filename, lines);
     }
 
     function exportTableToPdf(tableID, title) {

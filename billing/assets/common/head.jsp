@@ -15,5 +15,5 @@ String contextPath = request.getContextPath();
 <script src="<%=contextPath%>/assets/common/LoadContent.js"></script>
 <script src="<%=contextPath%>/dist/js/JsBarcode.all.min.js"></script>
 <script src="<%=contextPath%>/dist/js/chart.js"></script>
-<script src="<%=contextPath%>/dist/js/windowPrint.js"></script>
+<script src="<%=contextPath%>/dist/js/windowPrint.js?v=20260724"></script>
 <script src="<%=contextPath%>/dist/js/sweetalert2.all.min.js"></script>

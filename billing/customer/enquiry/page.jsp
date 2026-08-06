@@ -718,12 +718,74 @@ if (msg != null) {
         setTimeout(function() { w.print(); w.close(); }, 300);
     }
 
+    function csvEscapeCell(val) {
+        if (val === null || val === undefined) val = '';
+        val = String(val).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        if (/[",\n]/.test(val)) return '"' + val.replace(/"/g, '""') + '"';
+        return val;
+    }
+
+    function downloadAccountEntriesCsv(filename, lines) {
+        filename = filename.replace(/\.(xlsx|xls|csv)$/i, '') + '.csv';
+        const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        if (navigator.msSaveOrOpenBlob) {
+            navigator.msSaveOrOpenBlob(blob, filename);
+            return;
+        }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    }
+
     function exportAccountEntriesExcel() {
-        if (!buildEntriesPrintTable()) return;
-        if (!currentAccountData) return;
-        const safeName = (currentAccountData.name || 'Customer').replace(/[^\w\-]+/g, '_');
-        const period = getEntriesPeriodLabel().replace(/[^\w\-]+/g, '_');
-        exportTableToExcel('entriesExportTable', 'Account_Entries_' + safeName + '_' + period);
+        if (!currentAccountData) {
+            alert('Please select a customer first');
+            return;
+        }
+
+        const data = currentAccountData;
+        const entries = data.entries || [];
+        const period = getEntriesPeriodLabel();
+        const customerLabel = (data.name || '-') + ' - ' + (data.phone ? data.phone : 'No phone');
+        const advanceVal = parseFloat(data.advance || '0') || 0;
+        const dueVal = parseFloat(data.due || '0') || 0;
+        const lines = [];
+
+        lines.push('Customer Account Entries');
+        lines.push('Customer,' + csvEscapeCell(customerLabel));
+        lines.push('Period,' + csvEscapeCell(period));
+        lines.push('Purchase Balance to Pay,' + advanceVal.toFixed(2));
+        lines.push('Customer Due Balance,' + dueVal.toFixed(2));
+        lines.push('');
+        lines.push(['Date', 'Type', 'Payment', 'Bill Amount', 'Adjusted', 'Paid', 'Balance', 'Final Adv', 'Final Due', 'Notes']
+            .map(csvEscapeCell).join(','));
+
+        entries.forEach(function(entry) {
+            let billAmount = entry.isExchange ? formatEntryMoney(entry.billAmount) : formatEntryMoney(entry.amount);
+            let paid = entry.isExchange ? formatEntryMoney(entry.paid) : '-';
+            let balance = entry.isExchange ? formatEntryMoney(entry.balance) : '-';
+            lines.push([
+                entry.date || '-',
+                entry.type || '-',
+                entry.paymentMethod || '-',
+                billAmount,
+                formatEntryAdjusted(entry),
+                paid,
+                balance,
+                entry.finalAdvance || '0',
+                entry.finalDue || '0',
+                formatEntryNotes(entry)
+            ].map(csvEscapeCell).join(','));
+        });
+
+        const safeName = (data.name || 'Customer').replace(/[^\w\-]+/g, '_');
+        const safePeriod = period.replace(/[^\w\-]+/g, '_');
+        downloadAccountEntriesCsv('Account_Entries_' + safeName + '_' + safePeriod, lines);
     }
 
     function applyEntriesDateFilter() {
