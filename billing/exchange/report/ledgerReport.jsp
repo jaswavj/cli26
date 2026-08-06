@@ -680,7 +680,7 @@ BigDecimal dayClosing = dayOpening.add(dayTotalIn).subtract(dayTotalOut);
         openLedgerExportWindow(true);
     }
 </script>
-
+<br><br><br><br><br>
 </body>
 
 </html>

@@ -214,7 +214,9 @@ if (msg != null) {
                             <button type="reset" class="bb bb-outline" id="resetBtn">
                                 <i class="fa-solid fa-rotate-left me-1"></i>Reset
                             </button>
+                            
                         </div>
+                        <br><br><br><br><br>
                     </form>
                 </div>
             </div>

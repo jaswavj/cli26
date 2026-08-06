@@ -120,5 +120,6 @@ Vector reportData = exchange.getStockTransactionReport(fromDate, toDate, Integer
         </div>
     </div>
 </div>
+<br><br><br><br><br>
 </body>
 </html>
