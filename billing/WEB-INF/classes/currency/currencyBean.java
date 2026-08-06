@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Vector;
 
@@ -1298,69 +1299,114 @@ public class currencyBean {
     }
 
     public Vector getCustomerTransactions(int customerId) throws Exception {
-        Connection con = null;
+        return getCustomerTransactions(customerId, null, null);
+    }
+
+    private String buildCustomerTransactionsSql(boolean includeAdjustColumns) {
+        String adjustCols = includeAdjustColumns
+            ? "e.due_adjusted AS due_adjusted_amount, e.advance_adjusted AS advance_adjusted_amount, "
+            : "0 AS due_adjusted_amount, 0 AS advance_adjusted_amount, ";
+        return "SELECT " +
+            "CASE l.bill_type " +
+            "  WHEN 1 THEN 'Advance' " +
+            "  WHEN 2 THEN 'Due' " +
+            "  WHEN 3 THEN 'Due Collection' " +
+            "  WHEN 4 AND e.exchange_type = 1 THEN 'Exchange - Purchase' " +
+            "  WHEN 4 AND e.exchange_type = 2 THEN 'Exchange - Sale' " +
+            "  WHEN 6 THEN 'Purchase Balance Pay' " +
+            "  ELSE bt.name END AS entry_type, " +
+            "COALESCE(a.amount, d.amount, c.amount, ap.amount, e.counter_amount) AS amount, " +
+            "e.counter_amount AS bill_amount, " +
+            "e.paid AS paid_amount, " +
+            "e.balance AS balance_amount, " +
+            adjustCols +
+            "COALESCE(a.notes, d.notes, c.notes, ap.notes, e.notes) AS notes, " +
+            "l.created_at, l.advance, l.final_advance, l.due, l.final_due, " +
+            "COALESCE(pm.name, '-') AS payment_method, l.is_cash, l.is_bank, l.bill_type " +
+            "FROM ce_bill_ledger l " +
+            "INNER JOIN ce_bill_type bt ON bt.id = l.bill_type " +
+            "LEFT JOIN ce_cus_advance a ON l.bill_type = 1 AND a.id = l.bill_id " +
+            "LEFT JOIN ce_cus_due d ON l.bill_type = 2 AND d.id = l.bill_id " +
+            "LEFT JOIN ce_cus_due_collection c ON l.bill_type = 3 AND c.id = l.bill_id " +
+            "LEFT JOIN ce_cus_advance_payment ap ON l.bill_type = 6 AND ap.id = l.bill_id " +
+            "LEFT JOIN ce_currency_exchange e ON l.bill_type = 4 AND e.id = l.bill_id AND e.is_cancelled = 0 " +
+            "LEFT JOIN ce_payment_method pm ON pm.id = COALESCE(l.payment_id, a.payment_id, d.payment_id, c.payment_id, ap.payment_id, e.payment_id) " +
+            "WHERE l.customer_id = ? ";
+    }
+
+    private Vector readCustomerTransactionRows(ResultSet rs) throws Exception {
+        Vector list = new Vector();
+        while (rs.next()) {
+            Vector row = new Vector();
+            row.addElement(rs.getString("entry_type"));
+            row.addElement(rs.getBigDecimal("amount"));
+            row.addElement(rs.getString("notes"));
+            row.addElement(rs.getTimestamp("created_at"));
+            row.addElement(rs.getBigDecimal("advance"));
+            row.addElement(rs.getBigDecimal("final_advance"));
+            row.addElement(rs.getBigDecimal("due"));
+            row.addElement(rs.getBigDecimal("final_due"));
+            row.addElement(rs.getString("payment_method"));
+            row.addElement(rs.getBigDecimal("is_cash"));
+            row.addElement(rs.getBigDecimal("is_bank"));
+            row.addElement(rs.getBigDecimal("bill_amount"));
+            row.addElement(rs.getBigDecimal("paid_amount"));
+            row.addElement(rs.getBigDecimal("balance_amount"));
+            row.addElement(rs.getBigDecimal("due_adjusted_amount"));
+            row.addElement(rs.getBigDecimal("advance_adjusted_amount"));
+            row.addElement(Integer.valueOf(rs.getInt("bill_type")));
+            list.addElement(row);
+        }
+        return list;
+    }
+
+    private Vector queryCustomerTransactions(Connection con, int customerId, String fromDate, String toDate,
+            boolean includeAdjustColumns) throws Exception {
         PreparedStatement pt = null;
         ResultSet rs = null;
-        Vector list = new Vector();
         try {
-            con = util.DBConnectionManager.getConnectionFromPool();
-            pt = con.prepareStatement(
-                "SELECT " +
-                "CASE l.bill_type " +
-                "  WHEN 1 THEN 'Advance' " +
-                "  WHEN 2 THEN 'Due' " +
-                "  WHEN 3 THEN 'Due Collection' " +
-                "  WHEN 4 AND e.exchange_type = 1 THEN 'Exchange - Purchase' " +
-                "  WHEN 4 AND e.exchange_type = 2 THEN 'Exchange - Sale' " +
-                "  WHEN 6 THEN 'Purchase Balance Pay' " +
-                "  ELSE bt.name END AS entry_type, " +
-                "COALESCE(a.amount, d.amount, c.amount, ap.amount, e.counter_amount) AS amount, " +
-                "e.counter_amount AS bill_amount, " +
-                "e.paid AS paid_amount, " +
-                "e.balance AS balance_amount, " +
-                "e.due_adjusted AS due_adjusted_amount, " +
-                "e.advance_adjusted AS advance_adjusted_amount, " +
-                "COALESCE(a.notes, d.notes, c.notes, ap.notes, e.notes) AS notes, " +
-                "l.created_at, l.advance, l.final_advance, l.due, l.final_due, " +
-                "COALESCE(pm.name, '-') AS payment_method, l.is_cash, l.is_bank, l.bill_type " +
-                "FROM ce_bill_ledger l " +
-                "INNER JOIN ce_bill_type bt ON bt.id = l.bill_type " +
-                "LEFT JOIN ce_cus_advance a ON l.bill_type = 1 AND a.id = l.bill_id " +
-                "LEFT JOIN ce_cus_due d ON l.bill_type = 2 AND d.id = l.bill_id " +
-                "LEFT JOIN ce_cus_due_collection c ON l.bill_type = 3 AND c.id = l.bill_id " +
-                "LEFT JOIN ce_cus_advance_payment ap ON l.bill_type = 6 AND ap.id = l.bill_id " +
-                "LEFT JOIN ce_currency_exchange e ON l.bill_type = 4 AND e.id = l.bill_id AND e.is_cancelled = 0 " +
-                "LEFT JOIN ce_payment_method pm ON pm.id = COALESCE(l.payment_id, a.payment_id, d.payment_id, c.payment_id, ap.payment_id, e.payment_id) " +
-                "WHERE l.customer_id = ? " +
-                "ORDER BY l.created_at DESC, l.id DESC"
-            );
-            pt.setInt(1, customerId);
-            rs = pt.executeQuery();
-            while (rs.next()) {
-                Vector row = new Vector();
-                row.addElement(rs.getString("entry_type"));
-                row.addElement(rs.getBigDecimal("amount"));
-                row.addElement(rs.getString("notes"));
-                row.addElement(rs.getTimestamp("created_at"));
-                row.addElement(rs.getBigDecimal("advance"));
-                row.addElement(rs.getBigDecimal("final_advance"));
-                row.addElement(rs.getBigDecimal("due"));
-                row.addElement(rs.getBigDecimal("final_due"));
-                row.addElement(rs.getString("payment_method"));
-                row.addElement(rs.getBigDecimal("is_cash"));
-                row.addElement(rs.getBigDecimal("is_bank"));
-                row.addElement(rs.getBigDecimal("bill_amount"));
-                row.addElement(rs.getBigDecimal("paid_amount"));
-                row.addElement(rs.getBigDecimal("balance_amount"));
-                row.addElement(rs.getBigDecimal("due_adjusted_amount"));
-                row.addElement(rs.getBigDecimal("advance_adjusted_amount"));
-                row.addElement(Integer.valueOf(rs.getInt("bill_type")));
-                list.addElement(row);
+            StringBuilder sql = new StringBuilder(buildCustomerTransactionsSql(includeAdjustColumns));
+            boolean hasFrom = fromDate != null && fromDate.trim().length() > 0;
+            boolean hasTo = toDate != null && toDate.trim().length() > 0;
+            if (hasFrom) {
+                sql.append("AND DATE(l.created_at) >= ? ");
             }
-            return list;
+            if (hasTo) {
+                sql.append("AND DATE(l.created_at) <= ? ");
+            }
+            sql.append("ORDER BY l.created_at DESC, l.id DESC");
+
+            pt = con.prepareStatement(sql.toString());
+            int param = 1;
+            pt.setInt(param++, customerId);
+            if (hasFrom) {
+                pt.setString(param++, fromDate.trim());
+            }
+            if (hasTo) {
+                pt.setString(param++, toDate.trim());
+            }
+            rs = pt.executeQuery();
+            return readCustomerTransactionRows(rs);
         } finally {
             if (rs != null) try { rs.close(); } catch (Exception e) {}
             if (pt != null) try { pt.close(); } catch (Exception e) {}
+        }
+    }
+
+    public Vector getCustomerTransactions(int customerId, String fromDate, String toDate) throws Exception {
+        Connection con = null;
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            try {
+                return queryCustomerTransactions(con, customerId, fromDate, toDate, true);
+            } catch (SQLException ex) {
+                String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase() : "";
+                if (msg.indexOf("due_adjusted") >= 0 || msg.indexOf("advance_adjusted") >= 0) {
+                    return queryCustomerTransactions(con, customerId, fromDate, toDate, false);
+                }
+                throw ex;
+            }
+        } finally {
             if (con != null) try { con.close(); } catch (Exception e) {}
         }
     }

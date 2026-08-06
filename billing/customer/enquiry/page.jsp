@@ -94,6 +94,23 @@ if (msg != null) {
         .balance-list-table tbody tr { cursor: pointer; }
         .balance-list-table tbody tr:hover { background: #f8fafc; }
         .balance-list-panel { max-height: 420px; overflow-y: auto; }
+        .entries-toolbar .form-control,
+        .entries-toolbar .form-select { font-size: 0.85rem; padding: 0.35rem 0.65rem; }
+        .entries-toolbar .bb { padding: 0.35rem 0.55rem; font-size: 0.82rem; }
+        .export-btn {
+            width: 36px; height: 36px; border-radius: 8px; border: 1px solid #dbe3ee;
+            background: #fff; color: var(--bill-navy, #1e3a5f); display: inline-flex;
+            align-items: center; justify-content: center; font-size: 1rem;
+            cursor: pointer; transition: all 0.15s ease;
+        }
+        .export-btn:hover { background: var(--bill-navy, #1e3a5f); color: #fff; border-color: var(--bill-navy, #1e3a5f); }
+        .export-btn.print-btn:hover { background: #0f766e; border-color: #0f766e; }
+        .export-btn.excel-btn:hover { background: #15803d; border-color: #15803d; }
+        #entriesPrintTable .print-meta { margin-bottom: 12px; }
+        #entriesPrintTable .print-meta h2 { font-size: 1.1rem; margin: 0 0 6px; color: var(--bill-navy, #1e3a5f); }
+        #entriesPrintTable .print-meta p { margin: 0 0 4px; color: #334155; font-size: 0.9rem; }
+        #entriesPrintTable .balance-summary { margin: 8px 0 12px; }
+        #entriesPrintTable .balance-summary span { margin-right: 18px; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -158,7 +175,7 @@ if (msg != null) {
                     </div>
                     <div class="balance-card due">
                         <div>
-                            <div class="balance-label">Due Balance</div>
+                            <div class="balance-label">Customer Due Balance</div>
                             <div class="balance-value" id="dueBalance">0.0000</div>
                         </div>
                         <div class="due-actions">
@@ -178,8 +195,30 @@ if (msg != null) {
     <div class="row g-3" id="customerEntriesSection" style="display:none;">
         <div class="col-12">
             <div class="card mst-card h-100">
-                <div class="mst-card-header">
+                <div class="mst-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <h6 class="mb-0"><i class="fa-solid fa-list me-2"></i>Account Entries</h6>
+                    <div class="d-flex flex-wrap align-items-end gap-2 entries-toolbar print-hide">
+                        <div>
+                            <label class="form-label fw-semibold mb-0 small">From</label>
+                            <input type="date" id="entriesFromDate" class="form-control fg-inp">
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold mb-0 small">To</label>
+                            <input type="date" id="entriesToDate" class="form-control fg-inp">
+                        </div>
+                        <button type="button" class="bb bb-primary" onclick="applyEntriesDateFilter()">
+                            <i class="fa-solid fa-filter me-1"></i>Filter
+                        </button>
+                        <button type="button" class="bb bb-outline" onclick="clearEntriesDateFilter()">
+                            <i class="fa-solid fa-rotate-left me-1"></i>All
+                        </button>
+                        <button type="button" class="export-btn print-btn" onclick="printAccountEntries()" title="Print">
+                            <i class="fa-solid fa-print"></i>
+                        </button>
+                        <button type="button" class="export-btn excel-btn" onclick="exportAccountEntriesExcel()" title="Export Excel">
+                            <i class="fa-solid fa-file-excel"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body p-0 entries-panel">
                     <table class="table mst-table table-hover mb-0">
@@ -208,6 +247,8 @@ if (msg != null) {
         </div>
     </div>
 </div>
+
+<div id="entriesPrintTable" style="display:none;"></div>
 
 <div class="modal fade" id="balanceListModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -453,6 +494,7 @@ if (msg != null) {
     let searchTimer = null;
     let currentDueAmount = 0;
     let currentAdvanceAmount = 0;
+    let currentAccountData = null;
     let balanceListTimer = null;
     let balanceListModalInstance = null;
 
@@ -557,6 +599,151 @@ if (msg != null) {
         return num.toFixed(2);
     }
 
+    function getEntriesPeriodLabel() {
+        const fromDate = document.getElementById('entriesFromDate').value;
+        const toDate = document.getElementById('entriesToDate').value;
+        if (fromDate && toDate) return fromDate + ' to ' + toDate;
+        if (fromDate) return 'From ' + fromDate;
+        if (toDate) return 'Up to ' + toDate;
+        return 'All dates';
+    }
+
+    function formatEntryAdjusted(entry) {
+        if (!entry || !entry.isExchange) return '-';
+        const dueAdj = parseFloat(entry.dueAdjusted || '0') || 0;
+        const advAdj = parseFloat(entry.advanceAdjusted || '0') || 0;
+        if (dueAdj > 0) return 'Due ' + dueAdj.toFixed(2);
+        if (advAdj > 0) return 'Adv ' + advAdj.toFixed(2);
+        return '-';
+    }
+
+    function formatEntryNotes(entry) {
+        let notesCell = entry.notes ? entry.notes : '-';
+        if (entry.isExchange) {
+            const dueAdj = parseFloat(entry.dueAdjusted || '0') || 0;
+            const advAdj = parseFloat(entry.advanceAdjusted || '0') || 0;
+            if (dueAdj > 0 || advAdj > 0) {
+                const adjustNote = dueAdj > 0
+                    ? ('Due adjusted ' + dueAdj.toFixed(2))
+                    : ('Purchase balance adjusted ' + advAdj.toFixed(2));
+                notesCell = notesCell && notesCell !== '-'
+                    ? (notesCell + ' | ' + adjustNote)
+                    : adjustNote;
+            }
+        }
+        return notesCell;
+    }
+
+    function buildEntriesPrintTable() {
+        if (!currentAccountData) {
+            alert('Please select a customer first');
+            return false;
+        }
+
+        const data = currentAccountData;
+        const entries = data.entries || [];
+        const period = getEntriesPeriodLabel();
+        const customerLabel = (data.name || '-') + ' - ' + (data.phone ? data.phone : 'No phone');
+        const advanceVal = parseFloat(data.advance || '0') || 0;
+        const dueVal = parseFloat(data.due || '0') || 0;
+
+        let rowsHtml = '';
+        if (entries.length === 0) {
+            rowsHtml = '<tr><td colspan="10" class="text-center">No entries found</td></tr>';
+        } else {
+            entries.forEach(function(entry) {
+                let billAmountCell = formatEntryMoney(entry.amount);
+                let paidCell = '-';
+                let balanceCell = '-';
+                if (entry.isExchange) {
+                    billAmountCell = formatEntryMoney(entry.billAmount);
+                    paidCell = formatEntryMoney(entry.paid);
+                    balanceCell = formatEntryMoney(entry.balance);
+                }
+                rowsHtml +=
+                    '<tr>' +
+                    '<td>' + escapeHtml(entry.date || '-') + '</td>' +
+                    '<td>' + escapeHtml(entry.type || '-') + '</td>' +
+                    '<td>' + escapeHtml(entry.paymentMethod || '-') + '</td>' +
+                    '<td class="text-end">' + billAmountCell + '</td>' +
+                    '<td class="text-end">' + formatEntryAdjusted(entry) + '</td>' +
+                    '<td class="text-end">' + paidCell + '</td>' +
+                    '<td class="text-end">' + balanceCell + '</td>' +
+                    '<td class="text-end">' + escapeHtml(entry.finalAdvance || '0') + '</td>' +
+                    '<td class="text-end">' + escapeHtml(entry.finalDue || '0') + '</td>' +
+                    '<td>' + escapeHtml(formatEntryNotes(entry)) + '</td>' +
+                    '</tr>';
+            });
+        }
+
+        document.getElementById('entriesPrintTable').innerHTML =
+            '<div class="print-meta">' +
+                '<h2>Customer Account Entries</h2>' +
+                '<p><strong>Customer:</strong> ' + escapeHtml(customerLabel) + '</p>' +
+                '<p><strong>Period:</strong> ' + escapeHtml(period) + '</p>' +
+                '<div class="balance-summary">' +
+                    '<span>Purchase Balance to Pay: ' + advanceVal.toFixed(2) + '</span>' +
+                    '<span>Customer Due Balance: ' + dueVal.toFixed(2) + '</span>' +
+                '</div>' +
+            '</div>' +
+            '<table id="entriesExportTable" class="table mst-table mb-0">' +
+                '<thead><tr>' +
+                    '<th>Date</th><th>Type</th><th>Payment</th>' +
+                    '<th class="text-end">Bill Amount</th><th class="text-end">Adjusted</th>' +
+                    '<th class="text-end">Paid</th><th class="text-end">Balance</th>' +
+                    '<th class="text-end">Final Adv</th><th class="text-end">Final Due</th><th>Notes</th>' +
+                '</tr></thead>' +
+                '<tbody>' + rowsHtml + '</tbody>' +
+            '</table>';
+        return true;
+    }
+
+    function printAccountEntries() {
+        if (!buildEntriesPrintTable()) return;
+        const period = getEntriesPeriodLabel();
+        const title = 'Customer Account Entries (' + period + ')';
+        const tableHtml = document.getElementById('entriesPrintTable').innerHTML;
+        const w = window.open('', '_blank');
+        w.document.write('<html><head><title>' + title + '</title><style>' +
+            'body,h1,h2,h3,p,span,td,th{color:#000!important;}' +
+            'h2{font-size:18px;margin:0 0 6px;}' +
+            'p{margin:0 0 4px;font-size:13px;}' +
+            '.balance-summary{margin:8px 0 12px;font-size:13px;}' +
+            'table{border-collapse:collapse!important;width:100%;font-size:11px;}' +
+            'table,th,td{border:1px solid black!important;padding:4px!important;}' +
+            'th{background:#ddd!important;}.text-end{text-align:right;}' +
+            '</style></head><body>' + tableHtml + '</body></html>');
+        w.document.close();
+        w.focus();
+        setTimeout(function() { w.print(); w.close(); }, 300);
+    }
+
+    function exportAccountEntriesExcel() {
+        if (!buildEntriesPrintTable()) return;
+        if (!currentAccountData) return;
+        const safeName = (currentAccountData.name || 'Customer').replace(/[^\w\-]+/g, '_');
+        const period = getEntriesPeriodLabel().replace(/[^\w\-]+/g, '_');
+        exportTableToExcel('entriesExportTable', 'Account_Entries_' + safeName + '_' + period);
+    }
+
+    function applyEntriesDateFilter() {
+        const customerId = document.getElementById('selectedCustomerId').value;
+        if (!customerId) {
+            alert('Please select a customer first');
+            return;
+        }
+        loadCustomerAccount(customerId);
+    }
+
+    function clearEntriesDateFilter() {
+        document.getElementById('entriesFromDate').value = '';
+        document.getElementById('entriesToDate').value = '';
+        const customerId = document.getElementById('selectedCustomerId').value;
+        if (customerId) {
+            loadCustomerAccount(customerId);
+        }
+    }
+
     function renderEntries(entries) {
         const tbody = document.getElementById('entriesBody');
         tbody.innerHTML = '';
@@ -574,29 +761,14 @@ if (msg != null) {
             else if (typeText === 'due') badgeClass = 'entry-badge-due';
 
             let billAmountCell = formatEntryMoney(entry.amount);
-            let adjustedCell = '-';
+            let adjustedCell = formatEntryAdjusted(entry);
             let paidCell = '-';
             let balanceCell = '-';
-            let notesCell = entry.notes ? entry.notes : '-';
+            let notesCell = formatEntryNotes(entry);
             if (entry.isExchange) {
                 billAmountCell = formatEntryMoney(entry.billAmount);
                 paidCell = formatEntryMoney(entry.paid);
                 balanceCell = formatEntryMoney(entry.balance);
-                const dueAdj = parseFloat(entry.dueAdjusted || '0') || 0;
-                const advAdj = parseFloat(entry.advanceAdjusted || '0') || 0;
-                if (dueAdj > 0) {
-                    adjustedCell = 'Due ' + dueAdj.toFixed(2);
-                } else if (advAdj > 0) {
-                    adjustedCell = 'Adv ' + advAdj.toFixed(2);
-                }
-                if (dueAdj > 0 || advAdj > 0) {
-                    const adjustNote = dueAdj > 0
-                        ? ('Due adjusted ' + dueAdj.toFixed(2))
-                        : ('Purchase balance adjusted ' + advAdj.toFixed(2));
-                    notesCell = notesCell && notesCell !== '-'
-                        ? (notesCell + ' | ' + adjustNote)
-                        : adjustNote;
-                }
             }
 
             const tr = document.createElement('tr');
@@ -677,8 +849,22 @@ if (msg != null) {
     }
 
     function loadCustomerAccount(customerId) {
-        fetch(contextPath + '/customer/enquiry/getAccount.jsp?customerId=' + encodeURIComponent(customerId))
-            .then(function(res) { return res.json(); })
+        const fromDate = document.getElementById('entriesFromDate').value;
+        const toDate = document.getElementById('entriesToDate').value;
+        let url = contextPath + '/customer/enquiry/getAccount.jsp?customerId=' + encodeURIComponent(customerId);
+        if (fromDate) url += '&fromDate=' + encodeURIComponent(fromDate);
+        if (toDate) url += '&toDate=' + encodeURIComponent(toDate);
+
+        fetch(url)
+            .then(function(res) {
+                return res.text().then(function(text) {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        throw new Error('Server error loading account. Please restart Tomcat after update.');
+                    }
+                });
+            })
             .then(function(data) {
                 if (!data.success) {
                     alert(data.message || 'Unable to load customer account');
@@ -700,6 +886,7 @@ if (msg != null) {
 
                 currentDueAmount = parseFloat(data.due || '0');
                 currentAdvanceAmount = parseFloat(data.advance || '0');
+                currentAccountData = data;
                 document.getElementById('collectDueBtn').disabled = currentDueAmount <= 0;
                 document.getElementById('payAdvanceBtn').disabled = currentAdvanceAmount <= 0;
 
@@ -734,8 +921,11 @@ if (msg != null) {
         document.getElementById('detailAddress').textContent = '-';
         document.getElementById('detailNotes').textContent = '-';
         document.getElementById('customerDetailBtn').disabled = true;
+        document.getElementById('entriesFromDate').value = '';
+        document.getElementById('entriesToDate').value = '';
         currentDueAmount = 0;
         currentAdvanceAmount = 0;
+        currentAccountData = null;
         renderEntries([]);
     }
 

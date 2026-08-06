@@ -1,6 +1,37 @@
 <%@ page language="java" contentType="application/json; charset=UTF-8" pageEncoding="UTF-8"%>
 <%@ page import="java.util.*, org.json.*, java.math.BigDecimal, java.text.SimpleDateFormat" %>
 <jsp:useBean id="customer" class="currency.currencyBean" />
+<%!
+    private Vector filterTransactionsByDate(Vector transactions, String fromDate, String toDate) {
+        if (transactions == null) {
+            return new Vector();
+        }
+        boolean hasFrom = fromDate != null && fromDate.trim().length() > 0;
+        boolean hasTo = toDate != null && toDate.trim().length() > 0;
+        if (!hasFrom && !hasTo) {
+            return transactions;
+        }
+        SimpleDateFormat dayFmt = new SimpleDateFormat("yyyy-MM-dd");
+        Vector filtered = new Vector();
+        for (int i = 0; i < transactions.size(); i++) {
+            Vector row = (Vector) transactions.get(i);
+            java.sql.Timestamp createdAt = (java.sql.Timestamp) row.elementAt(3);
+            if (createdAt == null) {
+                filtered.addElement(row);
+                continue;
+            }
+            String day = dayFmt.format(createdAt);
+            if (hasFrom && day.compareTo(fromDate.trim()) < 0) {
+                continue;
+            }
+            if (hasTo && day.compareTo(toDate.trim()) > 0) {
+                continue;
+            }
+            filtered.addElement(row);
+        }
+        return filtered;
+    }
+%>
 <%
     request.setCharacterEncoding("UTF-8");
     JSONObject result = new JSONObject();
@@ -16,6 +47,11 @@
         }
 
         int customerId = Integer.parseInt(customerIdStr.trim());
+        String fromDate = request.getParameter("fromDate");
+        String toDate = request.getParameter("toDate");
+        if (fromDate != null && fromDate.trim().isEmpty()) fromDate = null;
+        if (toDate != null && toDate.trim().isEmpty()) toDate = null;
+
         Vector customerRow = customer.getCustomerById(customerId);
         if (customerRow == null || customerRow.isEmpty()) {
             result.put("success", false);
@@ -30,6 +66,7 @@
 
         JSONArray entries = new JSONArray();
         Vector transactions = customer.getCustomerTransactions(customerId);
+        transactions = filterTransactionsByDate(transactions, fromDate, toDate);
         for (int i = 0; i < transactions.size(); i++) {
             Vector row = (Vector) transactions.get(i);
             JSONObject entry = new JSONObject();
@@ -74,12 +111,15 @@
         result.put("notes", customerRow.elementAt(4) != null ? customerRow.elementAt(4).toString() : "");
         result.put("advance", advance != null ? advance.toPlainString() : "0");
         result.put("due", due != null ? due.toPlainString() : "0");
+        result.put("fromDate", fromDate != null ? fromDate : "");
+        result.put("toDate", toDate != null ? toDate : "");
         result.put("entries", entries);
     } catch (Exception e) {
         result.put("success", false);
-        result.put("message", e.getMessage());
+        result.put("message", e.getMessage() != null ? e.getMessage() : e.toString());
         e.printStackTrace();
     }
 
+    response.setContentType("application/json; charset=UTF-8");
     out.print(result.toString());
 %>
