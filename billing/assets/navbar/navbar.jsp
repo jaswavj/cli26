@@ -146,6 +146,20 @@ for (int i = 0; i < vecPer.size(); i++) {
     </div>
     <% } %>
 
+    <% if (permissions.contains(6)) { %>
+    <div class="sidebar-dropdown">
+      <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#additionalIncomeMenu">
+        <i class="fa-solid fa-coins"></i>
+        <span>Additional Income</span>
+        <i class="fas fa-chevron-down ms-auto"></i>
+      </a>
+      <div class="collapse sidebar-submenu" id="additionalIncomeMenu">
+        <a href="<%=request.getContextPath()%>/income/additionalIncome/page.jsp" class="sidebar-subitem"><i class="fa-solid fa-receipt me-2"></i>Income Entry</a>
+        <a href="<%=request.getContextPath()%>/income/additionalIncome/report.jsp" class="sidebar-subitem"><i class="fa-solid fa-chart-line me-2"></i>Income Report</a>
+      </div>
+    </div>
+    <% } %>
+
     <% if (permissions.contains(5)) { %>
     <div class="sidebar-dropdown">
       <a href="#" class="sidebar-item" data-bs-toggle="collapse" data-bs-target="#adminReportMenu">

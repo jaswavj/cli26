@@ -876,7 +876,7 @@ public class exchangeBean {
                 "SELECT COALESCE(SUM(net_amount), 0) AS balance FROM (" +
                 "  SELECT " +
                 "    CASE " +
-                "      WHEN l.bill_type = 3 OR (l.bill_type = 4 AND e.exchange_type = 2) THEN l." + column + " " +
+                "      WHEN l.bill_type = 3 OR (l.bill_type = 4 AND e.exchange_type = 2) OR l.bill_type = 7 THEN l." + column + " " +
                 "      WHEN l.bill_type = 4 AND e.exchange_type = 1 THEN -l." + column + " " +
                 "      WHEN l.bill_type IN (5, 6) THEN -l." + column + " " +
                 "      ELSE 0 " +
@@ -982,10 +982,11 @@ public class exchangeBean {
                 "      WHEN l.bill_type = 4 THEN 'Exchange Bill' " +
                 "      WHEN l.bill_type = 5 THEN 'Expense' " +
                 "      WHEN l.bill_type = 6 THEN 'Purchase Balance Pay' " +
+                "      WHEN l.bill_type = 7 THEN 'Additional Income' " +
                 "      ELSE bt.name " +
                 "    END AS description, " +
                 "    CASE " +
-                "      WHEN l.bill_type = 3 OR (l.bill_type = 4 AND e.exchange_type = 2) THEN (l.is_cash + l.is_bank) " +
+                "      WHEN l.bill_type = 3 OR (l.bill_type = 4 AND e.exchange_type = 2) OR l.bill_type = 7 THEN (l.is_cash + l.is_bank) " +
                 "      ELSE 0 " +
                 "    END AS cash_in, " +
                 "    CASE " +
@@ -1005,7 +1006,7 @@ public class exchangeBean {
                 "    AND ((l.is_cash + l.is_bank) > 0 OR (l.bill_type = 4 AND COALESCE(e.balance, 0) > 0)) " +
                 ") t GROUP BY description " +
                 "HAVING SUM(cash_in) > 0 OR SUM(cash_out) > 0 OR SUM(credit) > 0 " +
-                "ORDER BY FIELD(description, 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense', 'Purchase Balance Pay')"
+                "ORDER BY FIELD(description, 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Additional Income', 'Expense', 'Purchase Balance Pay')"
             );
             pt.setString(1, fromDate);
             pt.setString(2, toDate);
@@ -1044,10 +1045,11 @@ public class exchangeBean {
                 "      WHEN l.bill_type = 4 THEN 'Exchange Bill' " +
                 "      WHEN l.bill_type = 5 THEN 'Expense' " +
                 "      WHEN l.bill_type = 6 THEN 'Purchase Balance Pay' " +
+                "      WHEN l.bill_type = 7 THEN 'Additional Income' " +
                 "      ELSE bt.name " +
                 "    END AS description, " +
                 "    CASE " +
-                "      WHEN l.bill_type = 3 OR (l.bill_type = 4 AND e.exchange_type = 2) THEN l." + column + " " +
+                "      WHEN l.bill_type = 3 OR (l.bill_type = 4 AND e.exchange_type = 2) OR l.bill_type = 7 THEN l." + column + " " +
                 "      ELSE 0 " +
                 "    END AS cash_in, " +
                 "    CASE " +
@@ -1061,7 +1063,7 @@ public class exchangeBean {
                 "  WHERE DATE(l.created_at) BETWEEN ? AND ? AND l." + column + " > 0 " +
                 "    AND l.bill_type NOT IN (1, 2) " +
                 ") t GROUP BY description " +
-                "ORDER BY FIELD(description, 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Expense', 'Purchase Balance Pay')"
+                "ORDER BY FIELD(description, 'Due Collection', 'Exchange - Purchase', 'Exchange - Sale', 'Exchange Bill', 'Additional Income', 'Expense', 'Purchase Balance Pay')"
             );
             pt.setString(1, fromDate);
             pt.setString(2, toDate);
@@ -1091,7 +1093,7 @@ public class exchangeBean {
             String column = cashColumn ? "is_cash" : "is_bank";
             pt = con.prepareStatement(
                 "SELECT l.created_at, COALESCE(cu.name, '-') AS customer_name, l.bill_type AS bill_type_id, " +
-                "CASE l.bill_type WHEN 1 THEN 'Advance' WHEN 2 THEN 'Due' WHEN 3 THEN 'Due Collection' WHEN 4 THEN 'Exchange Bill' WHEN 5 THEN 'Expense' WHEN 6 THEN 'Purchase Balance Pay' ELSE bt.name END AS bill_type, " +
+                "CASE l.bill_type WHEN 1 THEN 'Advance' WHEN 2 THEN 'Due' WHEN 3 THEN 'Due Collection' WHEN 4 THEN 'Exchange Bill' WHEN 5 THEN 'Expense' WHEN 6 THEN 'Purchase Balance Pay' WHEN 7 THEN 'Additional Income' ELSE bt.name END AS bill_type, " +
                 "l." + column + " AS amount, pm.name AS payment_method, l.bill_id " +
                 "FROM ce_bill_ledger l " +
                 "LEFT JOIN ce_customer cu ON cu.id = l.customer_id " +
@@ -1131,7 +1133,7 @@ public class exchangeBean {
             con = util.DBConnectionManager.getConnectionFromPool();
             pt = con.prepareStatement(
                 "SELECT l.created_at, COALESCE(cu.name, '-') AS customer_name, " +
-                "CASE l.bill_type WHEN 1 THEN 'Advance' WHEN 2 THEN 'Due' WHEN 3 THEN 'Due Collection' WHEN 4 THEN 'Exchange Bill' WHEN 5 THEN 'Expense' WHEN 6 THEN 'Purchase Balance Pay' ELSE bt.name END AS bill_type, " +
+                "CASE l.bill_type WHEN 1 THEN 'Advance' WHEN 2 THEN 'Due' WHEN 3 THEN 'Due Collection' WHEN 4 THEN 'Exchange Bill' WHEN 5 THEN 'Expense' WHEN 6 THEN 'Purchase Balance Pay' WHEN 7 THEN 'Additional Income' ELSE bt.name END AS bill_type, " +
                 "COALESCE(a.amount, d.amount, dc.amount, ex.counter_amount, ex.amount, ee.amount, 0) AS amount, " +
                 "l.advance, l.final_advance, l.due, l.final_due, l.is_cash, l.is_bank, pm.name AS payment_method " +
                 "FROM ce_bill_ledger l " +
@@ -1242,6 +1244,13 @@ public class exchangeBean {
                 "  LEFT JOIN ce_payment_method pm ON pm.id = ee.payment_id " +
                 "  LEFT JOIN users u ON u.id = ee.uid " +
                 "  WHERE ee.is_active = 1 AND DATE(ee.exc_date_time) BETWEEN ? AND ? " +
+                "  UNION ALL " +
+                "  SELECT ai.id, ai.income_date, '-', NULL, " +
+                "    'Additional Income', ai.amount, 'Base Currency', ai.particular, u.user_name, " +
+                "    ai.amount, ai.amount, 0, 0, 0, ai.description " +
+                "  FROM ce_additional_income ai " +
+                "  LEFT JOIN users u ON u.id = ai.uid " +
+                "  WHERE ai.is_active = 1 AND DATE(ai.income_date) BETWEEN ? AND ? " +
                 ") t ORDER BY created_at ASC, txn_id ASC"
             );
             pt.setString(1, fromDate);
@@ -1256,6 +1265,8 @@ public class exchangeBean {
             pt.setString(10, toDate);
             pt.setString(11, fromDate);
             pt.setString(12, toDate);
+            pt.setString(13, fromDate);
+            pt.setString(14, toDate);
             rs = pt.executeQuery();
             while (rs.next()) {
                 Vector row = new Vector();

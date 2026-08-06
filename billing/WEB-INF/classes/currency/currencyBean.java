@@ -759,6 +759,7 @@ public class currencyBean {
     private static final int BILL_TYPE_DUE = 2;
     private static final int BILL_TYPE_DUE_COLLECTION = 3;
     private static final int BILL_TYPE_ADVANCE_PAYMENT = 6;
+    private static final int BILL_TYPE_ADDITIONAL_INCOME = 7;
 
     private BigDecimal safeAmount(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
@@ -950,6 +951,110 @@ public class currencyBean {
 
         upsertStock(con, baseCurrencyId, afterQty);
         insertStockTransaction(con, baseCurrencyId, stockTxnType, amount, beforeQty, afterQty);
+    }
+
+    /** Always increases base currency stock (additional income). */
+    private void applyBaseStockIncrease(Connection con, BigDecimal amount) throws Exception {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        int baseCurrencyId = getBaseCurrencyId(con);
+        if (baseCurrencyId <= 0) {
+            throw new Exception("Base currency is not configured in Currency Master");
+        }
+        BigDecimal beforeQty = loadStockForUpdate(con, baseCurrencyId);
+        BigDecimal afterQty = beforeQty.add(amount);
+        upsertStock(con, baseCurrencyId, afterQty);
+        insertStockTransaction(con, baseCurrencyId, 3, amount, beforeQty, afterQty);
+    }
+
+    public void addAdditionalIncome(String particular, BigDecimal amount, String description, int userId) throws Exception {
+        if (particular == null || particular.trim().isEmpty()) {
+            throw new Exception("Particular is required");
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new Exception("Income amount must be greater than zero");
+        }
+
+        Connection con = null;
+        PreparedStatement pt = null;
+        PreparedStatement ledgerPt = null;
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            con.setAutoCommit(false);
+
+            pt = con.prepareStatement(
+                "INSERT INTO ce_additional_income (particular, amount, description, income_date, uid, is_active) " +
+                "VALUES (?, ?, ?, NOW(), ?, 1)",
+                Statement.RETURN_GENERATED_KEYS
+            );
+            pt.setString(1, particular.trim());
+            pt.setBigDecimal(2, amount);
+            if (description != null && description.trim().length() > 0) {
+                pt.setString(3, description.trim());
+            } else {
+                pt.setNull(3, java.sql.Types.LONGVARCHAR);
+            }
+            pt.setInt(4, userId);
+            pt.executeUpdate();
+            int incomeId = insertGeneratedId(pt);
+            pt.close();
+            pt = null;
+
+            applyBaseStockIncrease(con, amount);
+
+            ledgerPt = con.prepareStatement(
+                "INSERT INTO ce_bill_ledger (bill_type, bill_id, advance, final_advance, due, final_due, is_cash, is_bank, payment_id) " +
+                "VALUES (?, ?, 0, 0, 0, 0, ?, 0, NULL)"
+            );
+            ledgerPt.setInt(1, BILL_TYPE_ADDITIONAL_INCOME);
+            ledgerPt.setInt(2, incomeId);
+            ledgerPt.setBigDecimal(3, amount);
+            ledgerPt.executeUpdate();
+
+            con.commit();
+        } catch (Exception e) {
+            if (con != null) con.rollback();
+            throw e;
+        } finally {
+            if (ledgerPt != null) try { ledgerPt.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
+    }
+
+    public Vector getAdditionalIncomeReport(String fromDate, String toDate) throws Exception {
+        Connection con = null;
+        PreparedStatement pt = null;
+        ResultSet rs = null;
+        Vector list = new Vector();
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            pt = con.prepareStatement(
+                "SELECT ai.income_date, ai.particular, ai.description, ai.amount, COALESCE(u.user_name, '-') AS user_name " +
+                "FROM ce_additional_income ai " +
+                "LEFT JOIN users u ON u.id = ai.uid " +
+                "WHERE ai.is_active = 1 AND DATE(ai.income_date) BETWEEN ? AND ? " +
+                "ORDER BY ai.income_date DESC, ai.id DESC"
+            );
+            pt.setString(1, fromDate);
+            pt.setString(2, toDate);
+            rs = pt.executeQuery();
+            while (rs.next()) {
+                Vector row = new Vector();
+                row.addElement(rs.getTimestamp("income_date"));
+                row.addElement(rs.getString("particular"));
+                row.addElement(rs.getString("description"));
+                row.addElement(rs.getBigDecimal("amount"));
+                row.addElement(rs.getString("user_name"));
+                list.addElement(row);
+            }
+            return list;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
     }
 
     private void loadAccountBalances(Connection con, int customerId, BigDecimal[] balances) throws Exception {
