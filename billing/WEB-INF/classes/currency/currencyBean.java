@@ -13,7 +13,7 @@ public class currencyBean {
     public currencyBean() {
     }
 
-    public int addCurrency(String code, String name, boolean isBase) throws Exception {
+    public int addCurrency(String code, String name, boolean isBase, boolean isBank) throws Exception {
         Connection con = null;
         PreparedStatement pt = null;
         ResultSet rs = null;
@@ -24,14 +24,18 @@ public class currencyBean {
             if (isBase) {
                 clearBaseCurrencyFlag(con);
             }
+            if (isBank) {
+                clearBankCurrencyFlag(con);
+            }
 
             pt = con.prepareStatement(
-                "INSERT INTO ce_currency (currency_code, currency_name, is_active, is_base) VALUES (?, ?, 1, ?)",
+                "INSERT INTO ce_currency (currency_code, currency_name, is_active, is_base, is_bank) VALUES (?, ?, 1, ?, ?)",
                 Statement.RETURN_GENERATED_KEYS
             );
             pt.setString(1, code.trim().toUpperCase());
             pt.setString(2, name.trim());
             pt.setInt(3, isBase ? 1 : 0);
+            pt.setInt(4, isBank ? 1 : 0);
             pt.executeUpdate();
             rs = pt.getGeneratedKeys();
             if (!rs.next()) {
@@ -48,6 +52,10 @@ public class currencyBean {
             if (pt != null) try { pt.close(); } catch (Exception e) {}
             if (con != null) try { con.close(); } catch (Exception e) {}
         }
+    }
+
+    public int addCurrency(String code, String name, boolean isBase) throws Exception {
+        return addCurrency(code, name, isBase, false);
     }
 
     public int addCurrency(String code, String name) throws Exception {
@@ -83,6 +91,48 @@ public class currencyBean {
             if (pt != null) try { pt.close(); } catch (Exception e) {}
             if (con != null) try { con.close(); } catch (Exception e) {}
         }
+    }
+
+    private void clearBankCurrencyFlag(Connection con) throws Exception {
+        PreparedStatement pt = null;
+        try {
+            pt = con.prepareStatement("UPDATE ce_currency SET is_bank = 0 WHERE is_bank = 1");
+            pt.executeUpdate();
+        } finally {
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+        }
+    }
+
+    private int getBankCurrencyId(Connection con) throws Exception {
+        PreparedStatement pt = null;
+        ResultSet rs = null;
+        try {
+            pt = con.prepareStatement(
+                "SELECT id FROM ce_currency WHERE is_bank = 1 AND is_active = 1 LIMIT 1"
+            );
+            rs = pt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("id");
+            }
+            return 0;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+        }
+    }
+
+    public int getBankCurrencyId() throws Exception {
+        Connection con = null;
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            return getBankCurrencyId(con);
+        } finally {
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
+    }
+
+    public boolean hasBankCurrency() throws Exception {
+        return getBankCurrencyId() > 0;
     }
 
     public boolean hasBaseCurrency() throws Exception {
@@ -163,7 +213,7 @@ public class currencyBean {
         try {
             con = util.DBConnectionManager.getConnectionFromPool();
             pt = con.prepareStatement(
-                "SELECT id, currency_code, currency_name, is_active, is_base FROM ce_currency ORDER BY currency_code"
+                "SELECT id, currency_code, currency_name, is_active, is_base, is_bank FROM ce_currency ORDER BY currency_code"
             );
             rs = pt.executeQuery();
             while (rs.next()) {
@@ -173,6 +223,7 @@ public class currencyBean {
                 row.addElement(rs.getString("currency_name"));
                 row.addElement(rs.getInt("is_active"));
                 row.addElement(rs.getInt("is_base"));
+                row.addElement(rs.getInt("is_bank"));
                 list.addElement(row);
             }
             return list;
@@ -217,7 +268,7 @@ public class currencyBean {
         try {
             con = util.DBConnectionManager.getConnectionFromPool();
             pt = con.prepareStatement(
-                "SELECT id, currency_code, currency_name, is_active, is_base FROM ce_currency WHERE id = ?"
+                "SELECT id, currency_code, currency_name, is_active, is_base, is_bank FROM ce_currency WHERE id = ?"
             );
             pt.setInt(1, id);
             rs = pt.executeQuery();
@@ -227,6 +278,7 @@ public class currencyBean {
                 row.addElement(rs.getString("currency_name"));
                 row.addElement(rs.getInt("is_active"));
                 row.addElement(rs.getInt("is_base"));
+                row.addElement(rs.getInt("is_bank"));
             }
             return row;
         } finally {
@@ -361,7 +413,7 @@ public class currencyBean {
         }
     }
 
-    public void updateCurrency(int id, String code, String name, boolean isBase) throws Exception {
+    public void updateCurrency(int id, String code, String name, boolean isBase, boolean isBank) throws Exception {
         Connection con = null;
         PreparedStatement pt = null;
         try {
@@ -371,14 +423,18 @@ public class currencyBean {
             if (isBase) {
                 clearBaseCurrencyFlag(con);
             }
+            if (isBank) {
+                clearBankCurrencyFlag(con);
+            }
 
             pt = con.prepareStatement(
-                "UPDATE ce_currency SET currency_code = ?, currency_name = ?, is_base = ? WHERE id = ?"
+                "UPDATE ce_currency SET currency_code = ?, currency_name = ?, is_base = ?, is_bank = ? WHERE id = ?"
             );
             pt.setString(1, code.trim().toUpperCase());
             pt.setString(2, name.trim());
             pt.setInt(3, isBase ? 1 : 0);
-            pt.setInt(4, id);
+            pt.setInt(4, isBank ? 1 : 0);
+            pt.setInt(5, id);
             pt.executeUpdate();
             con.commit();
         } catch (Exception e) {
@@ -388,6 +444,10 @@ public class currencyBean {
             if (pt != null) try { pt.close(); } catch (Exception e) {}
             if (con != null) try { con.close(); } catch (Exception e) {}
         }
+    }
+
+    public void updateCurrency(int id, String code, String name, boolean isBase) throws Exception {
+        updateCurrency(id, code, name, isBase, false);
     }
 
     public void updateCurrency(int id, String code, String name) throws Exception {
@@ -915,25 +975,31 @@ public class currencyBean {
     }
 
     /**
-     * Adjust base currency stock when payment method is cash.
-     * increase=true  → cash in  (Collect Due)
-     * increase=false → cash out (Pay Purchase Balance)
+     * Adjust stock for cash (base currency) or bank (bank currency) payments.
+     * increase=true  → stock in  (Collect Due)
+     * increase=false → stock out (Pay Purchase Balance)
      */
-    private void applyBaseCashStockIfNeeded(Connection con, int paymentId, BigDecimal amount,
+    private void applyPaymentStockIfNeeded(Connection con, int paymentId, BigDecimal amount,
             boolean increase) throws Exception {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
-        if (getPaymentMethodIsCash(con, paymentId) != 1) {
-            return;
+
+        int isCash = getPaymentMethodIsCash(con, paymentId);
+        int currencyId;
+        if (isCash == 1) {
+            currencyId = getBaseCurrencyId(con);
+            if (currencyId <= 0) {
+                throw new Exception("Base currency is not configured in Currency Master");
+            }
+        } else {
+            currencyId = getBankCurrencyId(con);
+            if (currencyId <= 0) {
+                throw new Exception("Bank currency is not configured in Currency Master");
+            }
         }
 
-        int baseCurrencyId = getBaseCurrencyId(con);
-        if (baseCurrencyId <= 0) {
-            throw new Exception("Base currency is not configured in Currency Master");
-        }
-
-        BigDecimal beforeQty = loadStockForUpdate(con, baseCurrencyId);
+        BigDecimal beforeQty = loadStockForUpdate(con, currencyId);
         BigDecimal afterQty;
         int stockTxnType;
 
@@ -942,15 +1008,15 @@ public class currencyBean {
             stockTxnType = 1; // stock in
         } else {
             if (beforeQty.compareTo(amount) < 0) {
-                String code = getCurrencyCode(con, baseCurrencyId);
+                String code = getCurrencyCode(con, currencyId);
                 throw new Exception("Insufficient " + code + " stock. Available: " + beforeQty.toPlainString());
             }
             afterQty = beforeQty.subtract(amount);
             stockTxnType = 2; // stock out
         }
 
-        upsertStock(con, baseCurrencyId, afterQty);
-        insertStockTransaction(con, baseCurrencyId, stockTxnType, amount, beforeQty, afterQty);
+        upsertStock(con, currencyId, afterQty);
+        insertStockTransaction(con, currencyId, stockTxnType, amount, beforeQty, afterQty);
     }
 
     /** Always increases base currency stock (additional income). */
@@ -1315,8 +1381,8 @@ public class currencyBean {
             accPt.close();
             accPt = null;
 
-            // Cash due collection → base currency stock increases
-            applyBaseCashStockIfNeeded(con, paymentId, amount, true);
+            // Cash/bank due collection → base/bank currency stock increases
+            applyPaymentStockIfNeeded(con, paymentId, amount, true);
 
             insertBillLedger(con, customerId, BILL_TYPE_DUE_COLLECTION, billId,
                 beforeAdvance, beforeAdvance, beforeDue, afterDue, cashBank[0], cashBank[1], paymentId);
@@ -1386,8 +1452,8 @@ public class currencyBean {
             accPt.close();
             accPt = null;
 
-            // Cash purchase-balance pay → base currency stock decreases
-            applyBaseCashStockIfNeeded(con, paymentId, amount, false);
+            // Cash/bank purchase-balance pay → base/bank currency stock decreases
+            applyPaymentStockIfNeeded(con, paymentId, amount, false);
 
             insertBillLedger(con, customerId, BILL_TYPE_ADVANCE_PAYMENT, billId,
                 beforeAdvance, afterAdvance, beforeDue, beforeDue, cashBank[0], cashBank[1], paymentId);

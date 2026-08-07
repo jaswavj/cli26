@@ -22,10 +22,17 @@ try {
     }
 
     boolean isBase = "1".equals(request.getParameter("isBase"));
+    boolean isBank = "1".equals(request.getParameter("isBank"));
     int existingBaseId = currency.getBaseCurrencyId();
+    int existingBankId = currency.getBankCurrencyId();
 
     if (isBase && existingBaseId > 0 && existingBaseId != currencyId) {
         response.sendRedirect(request.getContextPath() + "/master/exchange/page.jsp?msg=Only+one+base+currency+is+allowed&type=warning");
+        return;
+    }
+
+    if (isBank && existingBankId > 0 && existingBankId != currencyId) {
+        response.sendRedirect(request.getContextPath() + "/master/exchange/page.jsp?msg=Only+one+bank+currency+is+allowed&type=warning");
         return;
     }
 
@@ -46,7 +53,7 @@ try {
         }
     }
 
-    currency.updateCurrency(currencyId, currencyCode, currencyName, isBase);
+    currency.updateCurrency(currencyId, currencyCode, currencyName, isBase, isBank);
 
     if (!isBase && refCurrencyIds != null && refCurrencyIds.length > 0) {
         int[] refIds = new int[refCurrencyIds.length];

@@ -16,6 +16,29 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/`saiexchange` /*!40100 DEFAULT CHARACTER
 
 USE `saiexchange`;
 
+/*Table structure for table `ce_additional_income` */
+
+DROP TABLE IF EXISTS `ce_additional_income`;
+
+CREATE TABLE `ce_additional_income` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `particular` varchar(255) NOT NULL,
+  `amount` decimal(18,4) NOT NULL,
+  `description` text,
+  `income_date` datetime NOT NULL,
+  `uid` int NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ce_additional_income_date` (`income_date`),
+  KEY `idx_ce_additional_income_active` (`is_active`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `ce_additional_income` */
+
+insert  into `ce_additional_income`(`id`,`particular`,`amount`,`description`,`income_date`,`uid`,`is_active`,`created_at`) values 
+(1,'jas',100.0000,'ss','2026-08-06 16:41:10',1,1,'2026-08-06 16:41:10');
+
 /*Table structure for table `ce_bill_ledger` */
 
 DROP TABLE IF EXISTS `ce_bill_ledger`;
@@ -37,7 +60,7 @@ CREATE TABLE `ce_bill_ledger` (
   KEY `idx_ce_bill_ledger_payment` (`payment_id`),
   KEY `fk_ce_bill_ledger_customer` (`customer_id`),
   CONSTRAINT `fk_ce_bill_ledger_customer` FOREIGN KEY (`customer_id`) REFERENCES `ce_customer` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_bill_ledger` */
 
@@ -51,7 +74,8 @@ insert  into `ce_bill_ledger`(`id`,`customer_id`,`bill_type`,`bill_id`,`advance`
 (7,2,4,5,0.0000,0.0000,50550.0000,50550.0000,545.0000,0.0000,1,'2026-08-04 12:47:13'),
 (8,2,4,6,0.0000,0.0000,50550.0000,50330.0000,0.0000,0.0000,1,'2026-08-04 16:48:16'),
 (9,2,1,2,0.0000,100.0000,50330.0000,50330.0000,100.0000,0.0000,1,'2026-08-04 16:49:06'),
-(10,2,4,7,100.0000,0.0000,50330.0000,50830.0000,500.0000,0.0000,1,'2026-08-04 16:49:38');
+(10,2,4,7,100.0000,0.0000,50330.0000,50830.0000,500.0000,0.0000,1,'2026-08-04 16:49:38'),
+(11,NULL,7,1,0.0000,0.0000,0.0000,0.0000,100.0000,0.0000,NULL,'2026-08-06 16:41:10');
 
 /*Table structure for table `ce_bill_type` */
 
@@ -61,7 +85,7 @@ CREATE TABLE `ce_bill_type` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_bill_type` */
 
@@ -71,7 +95,8 @@ insert  into `ce_bill_type`(`id`,`name`) values
 (3,'due collection'),
 (4,'exchange bill'),
 (5,'Expense'),
-(6,'Purchase due payment');
+(6,'Purchase due payment'),
+(7,'Additional income');
 
 /*Table structure for table `ce_currency` */
 
@@ -83,20 +108,23 @@ CREATE TABLE `ce_currency` (
   `currency_name` varchar(100) NOT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `is_base` tinyint(1) NOT NULL DEFAULT '0',
+  `is_bank` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_ce_currency_code` (`currency_code`),
   KEY `idx_ce_currency_active` (`is_active`),
-  KEY `idx_ce_currency_base` (`is_base`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  KEY `idx_ce_currency_base` (`is_base`),
+  KEY `idx_ce_currency_bank` (`is_bank`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency` */
 
-insert  into `ce_currency`(`id`,`currency_code`,`currency_name`,`is_active`,`is_base`,`created_at`,`updated_at`) values 
-(1,'INR','INR',1,1,'2026-07-28 21:34:00','2026-07-28 21:34:00'),
-(2,'USD','USD',1,0,'2026-07-28 21:34:36','2026-07-28 21:34:36'),
-(3,'EUR','EURO',1,0,'2026-07-28 21:57:38','2026-07-28 21:57:38');
+insert  into `ce_currency`(`id`,`currency_code`,`currency_name`,`is_active`,`is_base`,`is_bank`,`created_at`,`updated_at`) values 
+(1,'INR','INR',1,1,0,'2026-07-28 21:34:00','2026-07-28 21:34:00'),
+(2,'USD','USD',1,0,0,'2026-07-28 21:34:36','2026-07-28 21:34:36'),
+(3,'EUR','EURO',1,0,0,'2026-07-28 21:57:38','2026-07-28 21:57:38'),
+(4,'SBI','State Bank of india',1,0,1,'2026-08-07 10:51:43','2026-08-07 10:51:43');
 
 /*Table structure for table `ce_currency_exchange` */
 
@@ -156,14 +184,15 @@ CREATE TABLE `ce_currency_limit` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_ce_currency_limit_pair` (`currency_id`,`ref_currency_id`),
   KEY `idx_ce_currency_limit_ref` (`ref_currency_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency_limit` */
 
 insert  into `ce_currency_limit`(`id`,`currency_id`,`ref_currency_id`,`min_value`,`max_value`,`created_at`,`updated_at`) values 
 (1,2,1,100.0000,110.0000,'2026-07-28 21:34:36','2026-07-28 21:34:36'),
 (2,1,2,0.0000,0.0000,'2026-07-28 21:34:36','2026-07-28 21:34:36'),
-(3,3,1,110.0000,112.0000,'2026-07-28 21:57:38','2026-07-28 21:57:38');
+(3,3,1,110.0000,112.0000,'2026-07-28 21:57:38','2026-07-28 21:57:38'),
+(4,4,1,1.0000,1.0000,'2026-08-07 10:51:43','2026-08-07 10:51:43');
 
 /*Table structure for table `ce_currency_stock` */
 
@@ -177,12 +206,12 @@ CREATE TABLE `ce_currency_stock` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_ce_currency_stock_currency` (`currency_id`),
   CONSTRAINT `fk_ce_currency_stock_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency_stock` */
 
 insert  into `ce_currency_stock`(`id`,`currency_id`,`quantity`,`updated_at`) values 
-(1,1,100560.0000,'2026-08-04 16:49:38'),
+(1,1,100660.0000,'2026-08-06 16:41:10'),
 (2,2,4.0000,'2026-08-04 12:47:13'),
 (8,3,2.0000,'2026-08-04 16:49:38');
 
@@ -233,7 +262,7 @@ CREATE TABLE `ce_currency_stock_transaction` (
   CONSTRAINT `fk_ce_currency_stock_txn_currency` FOREIGN KEY (`currency_id`) REFERENCES `ce_currency` (`id`),
   CONSTRAINT `fk_ce_stock_txn_adjustment` FOREIGN KEY (`adjustment_id`) REFERENCES `ce_currency_stock_adjustment` (`id`),
   CONSTRAINT `fk_ce_stock_txn_exchange` FOREIGN KEY (`exchange_id`) REFERENCES `ce_currency_exchange` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ce_currency_stock_transaction` */
 
@@ -257,7 +286,8 @@ insert  into `ce_currency_stock_transaction`(`id`,`exchange_id`,`adjustment_id`,
 (17,5,NULL,NULL,1,1,545.0000,99515.0000,100060.0000,'2026-08-04 12:47:13'),
 (18,6,NULL,NULL,3,1,2.0000,10.0000,12.0000,'2026-08-04 16:48:16'),
 (19,7,NULL,NULL,3,2,10.0000,12.0000,2.0000,'2026-08-04 16:49:38'),
-(20,7,NULL,NULL,1,1,500.0000,100060.0000,100560.0000,'2026-08-04 16:49:38');
+(20,7,NULL,NULL,1,1,500.0000,100060.0000,100560.0000,'2026-08-04 16:49:38'),
+(21,NULL,NULL,NULL,1,3,100.0000,100560.0000,100660.0000,'2026-08-06 16:41:10');
 
 /*Table structure for table `ce_currency_transfer` */
 
@@ -448,12 +478,7 @@ CREATE TABLE `ce_payment_method` (
 
 insert  into `ce_payment_method`(`id`,`name`,`is_cash`,`is_active`) values 
 (1,'Cash',1,1),
-(2,'UPI',0,1),
-(3,'Credit Card',0,1),
-(4,'Debit Card',0,1),
-(5,'Cheque',0,1),
-(6,'NEFT',0,1),
-(7,'IMPS',0,1);
+(2,'Bank',0,1);
 
 /*Table structure for table `company_details` */
 
@@ -549,7 +574,7 @@ CREATE TABLE `user_modules` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `module_name` varchar(255) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=latin1;
 
 /*Data for the table `user_modules` */
 
@@ -558,7 +583,8 @@ insert  into `user_modules`(`id`,`module_name`) values
 (2,'Exchange Report'),
 (3,'Customer'),
 (4,'Expense'),
-(5,'Admin');
+(5,'Admin'),
+(6,'Additional income');
 
 /*Table structure for table `user_permission` */
 
@@ -573,16 +599,17 @@ CREATE TABLE `user_permission` (
   PRIMARY KEY (`id`),
   KEY `mod` (`module_id`),
   KEY `uid` (`uid`)
-) ENGINE=InnoDB AUTO_INCREMENT=122 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=128 DEFAULT CHARSET=latin1;
 
 /*Data for the table `user_permission` */
 
 insert  into `user_permission`(`id`,`module_id`,`uid`,`date`,`time`) values 
-(70,1,1,'2025-09-19','11:43:23'),
-(71,2,1,'2025-09-19','11:43:23'),
-(72,3,1,'2025-09-19','11:43:23'),
-(73,4,1,'2025-09-19','11:43:23'),
-(74,5,1,'2025-09-19','11:43:23');
+(122,1,1,'2026-08-06','16:40:35'),
+(123,2,1,'2026-08-06','16:40:35'),
+(124,3,1,'2026-08-06','16:40:35'),
+(125,4,1,'2026-08-06','16:40:35'),
+(126,5,1,'2026-08-06','16:40:35'),
+(127,6,1,'2026-08-06','16:40:35');
 
 /*Table structure for table `user_special_permission` */
 

@@ -414,6 +414,34 @@ public class exchangeBean {
         }
     }
 
+    private int getBankCurrencyId(Connection con) throws Exception {
+        PreparedStatement pt = null;
+        ResultSet rs = null;
+        try {
+            pt = con.prepareStatement(
+                "SELECT id FROM ce_currency WHERE is_bank = 1 AND is_active = 1 LIMIT 1"
+            );
+            rs = pt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("id");
+            }
+            return 0;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (Exception e) {}
+            if (pt != null) try { pt.close(); } catch (Exception e) {}
+        }
+    }
+
+    public int getBankCurrencyId() throws Exception {
+        Connection con = null;
+        try {
+            con = util.DBConnectionManager.getConnectionFromPool();
+            return getBankCurrencyId(con);
+        } finally {
+            if (con != null) try { con.close(); } catch (Exception e) {}
+        }
+    }
+
     private String getCurrencyCode(Connection con, int currencyId) throws Exception {
         PreparedStatement pt = null;
         ResultSet rs = null;
@@ -633,6 +661,7 @@ public class exchangeBean {
             }
 
             int isCash = getPaymentMethodIsCash(con, paymentId);
+            int bankCurrencyId = getBankCurrencyId(con);
             String counterCode = getCurrencyCode(con, counterCurrencyId);
 
             if (!baseToBase) {
@@ -641,6 +670,10 @@ public class exchangeBean {
                     getCurrencyCode(con, currencyId), counterCode);
             }
             BigDecimal[] cashBank = resolveCashBankAmounts(con, paymentId, paidAmount);
+
+            if (isCash != 1 && paidAmount.compareTo(BigDecimal.ZERO) > 0 && bankCurrencyId <= 0) {
+                throw new Exception("Bank currency is not configured in Currency Master");
+            }
 
             pt = con.prepareStatement(
                 "INSERT INTO ce_currency_exchange " +
@@ -672,22 +705,42 @@ public class exchangeBean {
             pt = null;
 
             if (baseToBase) {
-                // Base ↔ base: rate 1. Stock follows quantity sold/purchased (not cash paid).
-                // Purchase = stock in, Sale = stock out.
                 if (exchangeType == EXCHANGE_TYPE_PURCHASE) {
                     applyStockMovement(con, exchangeId, baseCurrencyId, true, amount);
+                    if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+                        if (isCash == 1) {
+                            applyStockMovement(con, exchangeId, counterCurrencyId, false, paidAmount);
+                        } else {
+                            applyStockMovement(con, exchangeId, bankCurrencyId, false, paidAmount);
+                        }
+                    }
                 } else {
                     applyStockMovement(con, exchangeId, baseCurrencyId, false, amount);
+                    if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+                        if (isCash == 1) {
+                            applyStockMovement(con, exchangeId, counterCurrencyId, true, paidAmount);
+                        } else {
+                            applyStockMovement(con, exchangeId, bankCurrencyId, true, paidAmount);
+                        }
+                    }
                 }
             } else if (exchangeType == EXCHANGE_TYPE_PURCHASE) {
                 applyStockMovement(con, exchangeId, currencyId, true, amount);
-                if (isCash == 1 && paidAmount.compareTo(BigDecimal.ZERO) > 0) {
-                    applyStockMovement(con, exchangeId, counterCurrencyId, false, paidAmount);
+                if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+                    if (isCash == 1) {
+                        applyStockMovement(con, exchangeId, counterCurrencyId, false, paidAmount);
+                    } else {
+                        applyStockMovement(con, exchangeId, bankCurrencyId, false, paidAmount);
+                    }
                 }
             } else {
                 applyStockMovement(con, exchangeId, currencyId, false, amount);
-                if (isCash == 1 && paidAmount.compareTo(BigDecimal.ZERO) > 0) {
-                    applyStockMovement(con, exchangeId, counterCurrencyId, true, paidAmount);
+                if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+                    if (isCash == 1) {
+                        applyStockMovement(con, exchangeId, counterCurrencyId, true, paidAmount);
+                    } else {
+                        applyStockMovement(con, exchangeId, bankCurrencyId, true, paidAmount);
+                    }
                 }
             }
 

@@ -7,11 +7,13 @@ CREATE TABLE IF NOT EXISTS ce_currency (
     currency_name VARCHAR(100) NOT NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     is_base TINYINT(1) NOT NULL DEFAULT 0,
+    is_bank TINYINT(1) NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_ce_currency_code (currency_code),
     KEY idx_ce_currency_active (is_active),
-    KEY idx_ce_currency_base (is_base)
+    KEY idx_ce_currency_base (is_base),
+    KEY idx_ce_currency_bank (is_bank)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Limits of NEW currency against each EXISTING currency at add/edit time

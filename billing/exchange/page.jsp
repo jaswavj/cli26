@@ -228,7 +228,9 @@ if (msg != null) {
     const contextPath = '<%=request.getContextPath()%>';
     let currenciesData = [];
     let baseCurrencyId = 0;
+    let bankCurrencyId = 0;
     let baseCurrency = null;
+    let bankCurrency = null;
     let searchTimer = null;
 
     const searchInput = document.getElementById('customerSearch');
@@ -270,6 +272,17 @@ if (msg != null) {
     function isCashPayment() {
         const opt = paymentSelect.options[paymentSelect.selectedIndex];
         return opt && opt.dataset.isCash === '1';
+    }
+
+    function isBankPayment() {
+        const opt = paymentSelect.options[paymentSelect.selectedIndex];
+        return opt && opt.value && opt.dataset.isCash !== '1';
+    }
+
+    function getPaymentStockCurrency() {
+        if (isCashPayment()) return baseCurrency;
+        if (isBankPayment()) return bankCurrency;
+        return null;
     }
 
     function getBaseCurrencyCode() {
@@ -502,7 +515,9 @@ if (msg != null) {
             .then(function(data) {
                 currenciesData = (data && data.currencies) ? data.currencies : (data || []);
                 baseCurrencyId = (data && data.baseCurrencyId) ? data.baseCurrencyId : 0;
+                bankCurrencyId = (data && data.bankCurrencyId) ? data.bankCurrencyId : 0;
                 baseCurrency = currenciesData.find(function(c) { return String(c.id) === String(baseCurrencyId); }) || null;
+                bankCurrency = currenciesData.find(function(c) { return String(c.id) === String(bankCurrencyId); }) || null;
                 renderCurrencyOptions();
             })
             .catch(function(err) { console.error(err); });
@@ -564,34 +579,57 @@ if (msg != null) {
             return;
         }
 
-        const stock = parseFloat(baseCurrency.stock || '0');
         const paidAmt = parseFloat(paidInput.value) || 0;
-        const counterCode = baseCurrency.code;
+        const payCurrency = getPaymentStockCurrency();
 
-        if (!isCashPayment()) {
-            counterStockHint.textContent = 'Non-cash payment — ' + counterCode + ' stock will not change';
+        if (isBankPayment() && !bankCurrency) {
+            counterStockHint.textContent = 'Set a bank currency in Currency Master for bank / non-cash payments.';
+            counterStockHint.style.color = '#dc2626';
+            return;
+        }
+
+        if (!payCurrency) {
+            counterStockHint.textContent = 'Select a payment method to see stock effect';
             counterStockHint.style.color = '#64748b';
             return;
         }
 
+        const stock = parseFloat(payCurrency.stock || '0');
+        const payCode = payCurrency.code;
+        const payLabel = isCashPayment() ? 'cash' : 'bank';
+
         if (isBaseToBase()) {
+            const baseStock = parseFloat(baseCurrency.stock || '0');
+            const counterCode = baseCurrency.code;
             const amt = parseFloat(amountInput.value) || 0;
             if (isPurchase) {
-                counterStockHint.textContent = 'Base purchase: ' + counterCode + ' stock increases by ' + amt.toFixed(4);
-                counterStockHint.style.color = '#0f766e';
+                let hint = 'Base purchase: ' + counterCode + ' stock increases by ' + amt.toFixed(4);
+                if (paidAmt > 0 && payCurrency) {
+                    hint += '; ' + payCode + ' ' + payLabel + ' stock decreases by ' + paidAmt.toFixed(4);
+                    counterStockHint.style.color = (paidAmt > stock) ? '#dc2626' : '#0f766e';
+                } else {
+                    counterStockHint.style.color = '#0f766e';
+                }
+                counterStockHint.textContent = hint;
             } else {
-                counterStockHint.textContent = 'Base sale: ' + counterCode + ' stock decreases by ' + amt.toFixed(4)
-                    + ' (available ' + stock.toFixed(4) + ')';
-                counterStockHint.style.color = (amt > 0 && amt > stock) ? '#dc2626' : '#0f766e';
+                let hint = 'Base sale: ' + counterCode + ' stock decreases by ' + amt.toFixed(4)
+                    + ' (available ' + baseStock.toFixed(4) + ')';
+                if (paidAmt > 0 && payCurrency) {
+                    hint += '; ' + payCode + ' ' + payLabel + ' stock increases by ' + paidAmt.toFixed(4);
+                }
+                counterStockHint.textContent = hint;
+                counterStockHint.style.color = (amt > 0 && amt > baseStock) ? '#dc2626' : '#0f766e';
             }
             return;
         }
 
         if (isPurchase) {
-            counterStockHint.textContent = 'Available stock: ' + stock.toFixed(4) + ' ' + counterCode + ' (will decrease by paid amount on cash purchase)';
+            counterStockHint.textContent = 'Available ' + payLabel + ' stock: ' + stock.toFixed(4) + ' ' + payCode
+                + ' (will decrease by paid amount on ' + payLabel + ' purchase)';
             counterStockHint.style.color = (paidAmt > 0 && paidAmt > stock) ? '#dc2626' : '#0f766e';
         } else {
-            counterStockHint.textContent = 'Stock after cash sale: ' + (stock + paidAmt).toFixed(4) + ' ' + counterCode + ' (increases by paid amount)';
+            counterStockHint.textContent = 'Stock after ' + payLabel + ' sale: ' + (stock + paidAmt).toFixed(4) + ' ' + payCode
+                + ' (increases by paid amount)';
             counterStockHint.style.color = '#0f766e';
         }
     }
@@ -758,11 +796,20 @@ if (msg != null) {
             return;
         }
 
-        if (isPurchase && !isBaseToBase() && isCashPayment() && baseCurrency) {
-            const counterStock = parseFloat(baseCurrency.stock || '0');
-            if (paidAmt > counterStock) {
+        if (isPurchase && paidAmt > 0) {
+            const payCurrency = getPaymentStockCurrency();
+            if (payCurrency) {
+                const payStock = parseFloat(payCurrency.stock || '0');
+                const payCode = payCurrency.code;
+                const payLabel = isCashPayment() ? 'base currency' : 'bank currency';
+                if (paidAmt > payStock) {
+                    e.preventDefault();
+                    alert('Insufficient ' + payLabel + ' stock for payment. Available: ' + payStock.toFixed(4) + ' ' + payCode);
+                    return;
+                }
+            } else if (isBankPayment()) {
                 e.preventDefault();
-                alert('Insufficient base currency stock for cash payment. Available: ' + counterStock.toFixed(4) + ' ' + counterCode);
+                alert('Bank currency is not configured. Set it in Currency Master first.');
                 return;
             }
         }
@@ -796,6 +843,14 @@ if (msg != null) {
 
     loadCurrencies();
     updateTypeLabels();
+
+    document.querySelectorAll('#exchangeForm input[type="number"]').forEach(function(input) {
+        input.addEventListener('wheel', function(e) {
+            if (document.activeElement === input) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    });
 
     <% if (msg != null && !msg.trim().isEmpty()) { %>
     document.addEventListener('DOMContentLoaded', function() {

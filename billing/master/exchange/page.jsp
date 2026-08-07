@@ -12,6 +12,8 @@ if (userId == null) {
 Vector allCurrencies = currency.getCurrencyList();
 boolean hasBaseCurrency = currency.hasBaseCurrency();
 int baseCurrencyId = currency.getBaseCurrencyId();
+boolean hasBankCurrency = currency.hasBankCurrency();
+int bankCurrencyId = currency.getBankCurrencyId();
 String baseCurrencyCode = "";
 String baseCurrencyName = "";
 if (allCurrencies != null) {
@@ -110,6 +112,19 @@ String type = request.getParameter("type");
                             <% } %>
                         </div>
 
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" name="isBank" id="addIsBank" value="1"
+                                    <%= hasBankCurrency ? "disabled" : "" %>>
+                                <label class="form-check-label fw-semibold" for="addIsBank">Bank Currency</label>
+                            </div>
+                            <% if (hasBankCurrency) { %>
+                            <small class="text-muted d-block mt-1">A bank currency is already set. Only one bank currency is allowed.</small>
+                            <% } else { %>
+                            <small class="text-muted d-block mt-1">Mark this as the bank currency for bank transactions.</small>
+                            <% } %>
+                        </div>
+
                         <% if (hasBaseCurrency && baseCurrencyId > 0) { %>
                         <div class="mb-3" id="addBaseLimitSection">
                             <label class="form-label fw-semibold">Exchange Limit vs Base Currency</label>
@@ -156,12 +171,13 @@ String type = request.getParameter("type");
                             <thead>
                                 <tr>
                                     <th>#</th>
+                                    <th class="text-center">Actions</th>
                                     <th>Code</th>
                                     <th>Name</th>
                                     <th>Base</th>
+                                    <th>Bank</th>
                                     <th>Exchange Limits</th>
                                     <th>Status</th>
-                                    <th class="text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -175,6 +191,7 @@ String type = request.getParameter("type");
                                             String name = row.elementAt(2).toString();
                                             int isActive = Integer.parseInt(row.elementAt(3).toString());
                                             int isBase = Integer.parseInt(row.elementAt(4).toString());
+                                            int isBank = Integer.parseInt(row.elementAt(5).toString());
                                             String limitsSummary = currency.getCurrencyLimitsSummary(id);
 
                                             StringBuilder limitsJson = new StringBuilder("[");
@@ -199,11 +216,40 @@ String type = request.getParameter("type");
                                 %>
                                 <tr>
                                     <td><%= i + 1 %></td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm bb bb-outline me-1"
+                                            title="Edit"
+                                            onclick='openEditModal(<%= id %>, <%= limitsJson.toString() %>)'>
+                                            <i class="fa-solid fa-pen-to-square"></i>
+                                        </button>
+                                        <% if (isActive == 1) { %>
+                                            <a href="<%=contextPath%>/master/exchange/block.jsp?id=<%= id %>&action=block"
+                                               class="btn btn-sm btn-outline-danger"
+                                               title="Block"
+                                               onclick="return confirm('Block this currency?')">
+                                                <i class="fa-solid fa-ban"></i>
+                                            </a>
+                                        <% } else { %>
+                                            <a href="<%=contextPath%>/master/exchange/block.jsp?id=<%= id %>&action=unblock"
+                                               class="btn btn-sm btn-outline-success"
+                                               title="Unblock"
+                                               onclick="return confirm('Unblock this currency?')">
+                                                <i class="fa-solid fa-circle-check"></i>
+                                            </a>
+                                        <% } %>
+                                    </td>
                                     <td class="fw-semibold"><%= code %></td>
                                     <td><%= name %></td>
                                     <td>
                                         <% if (isBase == 1) { %>
                                             <span class="badge bg-primary"><i class="fa-solid fa-star me-1"></i>Base</span>
+                                        <% } else { %>
+                                            <span class="text-muted">—</span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (isBank == 1) { %>
+                                            <span class="badge bg-info text-dark"><i class="fa-solid fa-building-columns me-1"></i>Bank</span>
                                         <% } else { %>
                                             <span class="text-muted">—</span>
                                         <% } %>
@@ -216,32 +262,13 @@ String type = request.getParameter("type");
                                             <span class="badge bg-danger">Blocked</span>
                                         <% } %>
                                     </td>
-                                    <td class="text-center">
-                                        <button type="button" class="btn btn-sm bb bb-outline me-1"
-                                            onclick='openEditModal(<%= id %>, <%= limitsJson.toString() %>)'>
-                                            <i class="fa-solid fa-pen-to-square me-1"></i>Edit
-                                        </button>
-                                        <% if (isActive == 1) { %>
-                                            <a href="<%=contextPath%>/master/exchange/block.jsp?id=<%= id %>&action=block"
-                                               class="btn btn-sm btn-outline-danger"
-                                               onclick="return confirm('Block this currency?')">
-                                                <i class="fa-solid fa-ban me-1"></i>Block
-                                            </a>
-                                        <% } else { %>
-                                            <a href="<%=contextPath%>/master/exchange/block.jsp?id=<%= id %>&action=unblock"
-                                               class="btn btn-sm btn-outline-success"
-                                               onclick="return confirm('Unblock this currency?')">
-                                                <i class="fa-solid fa-circle-check me-1"></i>Unblock
-                                            </a>
-                                        <% } %>
-                                    </td>
                                 </tr>
                                 <%
                                         }
                                     } else {
                                 %>
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-muted">
+                                    <td colspan="8" class="text-center py-4 text-muted">
                                         <i class="fa-solid fa-inbox fa-2x mb-2 d-block opacity-50"></i>
                                         No currencies found. Add your first currency on the left.
                                     </td>
@@ -249,7 +276,7 @@ String type = request.getParameter("type");
                                 <%
                                     }
                                 } catch (Exception e) {
-                                    out.println("<tr><td colspan='7' class='text-center text-danger'>Error loading currencies: " + e.getMessage() + "</td></tr>");
+                                    out.println("<tr><td colspan='8' class='text-center text-danger'>Error loading currencies: " + e.getMessage() + "</td></tr>");
                                     e.printStackTrace();
                                 }
                                 %>
@@ -292,6 +319,14 @@ String type = request.getParameter("type");
                         <small class="text-muted d-block mt-1" id="editBaseHint"></small>
                     </div>
 
+                    <div class="mb-3 mt-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="isBank" id="editIsBank" value="1">
+                            <label class="form-check-label fw-semibold" for="editIsBank">Bank Currency</label>
+                        </div>
+                        <small class="text-muted d-block mt-1" id="editBankHint"></small>
+                    </div>
+
                     <div id="editLimitsContainer" class="mt-3"></div>
 
                     <div class="d-flex gap-2 justify-content-end mt-3">
@@ -319,7 +354,8 @@ String type = request.getParameter("type");
                 out.print("\"id\":" + row.elementAt(0) + ",");
                 out.print("\"code\":\"" + row.elementAt(1).toString().replace("\"", "\\\"") + "\",");
                 out.print("\"name\":\"" + row.elementAt(2).toString().replace("\"", "\\\"") + "\",");
-                out.print("\"isBase\":" + row.elementAt(4));
+                out.print("\"isBase\":" + row.elementAt(4) + ",");
+                out.print("\"isBank\":" + row.elementAt(5));
                 out.print("}");
             }
         }
@@ -327,6 +363,7 @@ String type = request.getParameter("type");
     ];
 
     const hasBaseCurrency = <%= hasBaseCurrency ? "true" : "false" %>;
+    const hasBankCurrency = <%= hasBankCurrency ? "true" : "false" %>;
     const baseCurrencyId = <%= baseCurrencyId %>;
     const baseCurrencyCode = '<%= baseCurrencyCode.replace("'", "\\'") %>';
     const baseCurrencyName = '<%= baseCurrencyName.replace("'", "\\'") %>';
@@ -364,6 +401,22 @@ String type = request.getParameter("type");
             editBaseHint.textContent = 'Another currency is already set as base. Only one base currency is allowed.';
         } else {
             editBaseHint.textContent = 'Mark this as the base currency for exchange transactions.';
+        }
+
+        const editIsBank = document.getElementById('editIsBank');
+        const editBankHint = document.getElementById('editBankHint');
+        const isThisBank = currency.isBank === 1;
+        const canSetBank = isThisBank || !hasBankCurrency;
+
+        editIsBank.checked = isThisBank;
+        editIsBank.disabled = !canSetBank;
+
+        if (isThisBank) {
+            editBankHint.textContent = 'This is the current bank currency. Uncheck to remove bank status.';
+        } else if (hasBankCurrency) {
+            editBankHint.textContent = 'Another currency is already set as bank. Only one bank currency is allowed.';
+        } else {
+            editBankHint.textContent = 'Mark this as the bank currency for bank transactions.';
         }
 
         const limitsMap = {};
